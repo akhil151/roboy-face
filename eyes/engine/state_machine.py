@@ -6,16 +6,22 @@ calm, listening, thinking, speaking, happy, caring, sad, sleepy, surprised, focu
 
 Holds a registry of AnimationState instances and delegates transitions
 through the AnimationMixer for smooth blending.
+
+Auto-registration:
+  Use ``register_all_registered(config)`` to instantiate and register every
+  AnimationState subclass currently in the REGISTRY (populated automatically
+  via ``__init_subclass__`` hooks in the animation modules).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, TYPE_CHECKING
+from typing import Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..animations.base import AnimationState
     from .animation_mixer import AnimationMixer
+    from .config import EngineConfig
 
 VALID_STATES: frozenset[str] = frozenset(
     [
@@ -36,10 +42,13 @@ VALID_STATES: frozenset[str] = frozenset(
 @dataclass
 class StateMachine:
     _mixer: "AnimationMixer"
-    _states: dict[str, "AnimationState"] = field(default_factory=dict)
+    _states: Dict[str, "AnimationState"] = field(default_factory=dict)
     _requested_state: Optional[str] = None
     _transition_duration_ms: Optional[float] = None
 
+    # ------------------------------------------------------------------
+    # Registration
+    # ------------------------------------------------------------------
     def register(self, name: str, state: "AnimationState") -> None:
         if name not in VALID_STATES:
             raise ValueError(
@@ -47,9 +56,44 @@ class StateMachine:
             )
         self._states[name] = state
 
+    def register_from_dict(
+        self, instances: Dict[str, "AnimationState"]
+    ) -> None:
+        for name, state in instances.items():
+            self.register(name, state)
+
+    def register_all_registered(self, config: "EngineConfig") -> None:
+        """Instantiate and register every AnimationState subclass.
+
+        Walks the auto-populated ``REGISTRY`` (from ``animations.base``)
+        and registers each class with the canonical 10 names.  Any state
+        whose name is not in VALID_STATES is skipped.
+        """
+        # Import locally to avoid import cycles at module load time.
+        from ..animations.base import instantiate_registered
+
+        instances = instantiate_registered(config)
+        for name, state in instances.items():
+            if name in VALID_STATES:
+                self.register(name, state)
+
+    # ------------------------------------------------------------------
+    # Query
+    # ------------------------------------------------------------------
     def get_state(self, name: str) -> Optional["AnimationState"]:
         return self._states.get(name)
 
+    @property
+    def registered_names(self) -> list[str]:
+        return sorted(self._states.keys())
+
+    @property
+    def all_registered(self) -> bool:
+        return all(name in self._states for name in VALID_STATES)
+
+    # ------------------------------------------------------------------
+    # Transitions
+    # ------------------------------------------------------------------
     def set_state(
         self,
         name: str,

@@ -9,6 +9,12 @@ Exposes exactly the public interface specified in the project design:
         def run_forever(self): ...
 
 All engine subsystems are composed internally and hidden behind this facade.
+
+State registration strategy:
+  AnimationState subclasses auto-register themselves via ``__init_subclass__``.
+  The 10 official states are imported here (so the modules load) and then the
+  StateMachine registers them all via ``register_all_registered`` in a single
+  call.  No per-class manual registration is required.
 """
 
 from __future__ import annotations
@@ -18,6 +24,10 @@ from typing import Optional
 from .engine.config import EngineConfig
 from .engine.animation_engine import AnimationEngine
 from .engine.state_machine import VALID_STATES
+
+# Ensure every animation module is loaded so its __init_subclass__ fires
+# and populates the REGISTRY.  Importing the package's __all__ is exactly
+# what we want here - it guarantees 10 states are registered.
 from .animations.base import AnimationState
 from .animations.calm import CalmAnimation
 from .animations.listening import ListeningAnimation
@@ -40,18 +50,17 @@ class EyeEngine:
         self._engine.initialize(initial_state="calm")
 
     def _register_default_states(self) -> None:
+        """Register every official state via the auto-registry.
+
+        Animation classes themselves (the subclasses imported above) populate
+        the REGISTRY at import time via __init_subclass__.  Here we simply
+        ask the StateMachine to instantiate each registered class with the
+        engine's shared config and register them in one call.  There is no
+        per-class duplication; the list is the canonical VALID_STATES set.
+        """
         sm = self._engine.state_machine
         cfg = self._engine.config
-        sm.register("calm", CalmAnimation(cfg))
-        sm.register("listening", ListeningAnimation(cfg))
-        sm.register("thinking", ThinkingAnimation(cfg))
-        sm.register("speaking", SpeakingAnimation(cfg))
-        sm.register("happy", HappyAnimation(cfg))
-        sm.register("caring", CaringAnimation(cfg))
-        sm.register("sad", SadAnimation(cfg))
-        sm.register("sleepy", SleepyAnimation(cfg))
-        sm.register("surprised", SurprisedAnimation(cfg))
-        sm.register("focus", FocusAnimation(cfg))
+        sm.register_all_registered(cfg)
 
     def set_state(self, state: str) -> None:
         self._engine.set_state(state)

@@ -3,23 +3,26 @@ Main animation engine - orchestrates all subsystems.
 
 Composes:
 - Config, EyePair rigs
-- AnimationMixer + StateMachine
+- AnimationMixer (with internal layered composition: State + Blink + Look + Micro + Speech)
+- StateMachine
 - BlinkController, LookController, MicroMotion
 - Renderer
 
-Applies controller outputs on top of the mixer's pose each frame.
-Exposes a minimal public API through EyeEngine (set_state, blink, look_at, run_forever).
+The mixer now owns the layer-composition pipeline, so this engine is
+responsible for:
+  * pumping dt_ms through every submodule in the correct order
+  * passing controller outputs as *layer inputs* to the mixer
+  * exposing the tiny public API required by EyeEngine (set_state / blink / look_at / run_forever)
 """
 
 from __future__ import annotations
 
-import sys
 from typing import Optional
 
 import pygame
 
 from .config import EngineConfig
-from .eye_pair import EyePair, blend_eye_pair
+from .eye_pair import EyePair
 from .renderer import Renderer
 from .animation_mixer import AnimationMixer
 from .state_machine import StateMachine, VALID_STATES
@@ -42,11 +45,14 @@ class AnimationEngine:
         self._look = LookController(self._config)
         self._micro = MicroMotion(self._config)
 
-        self._final_pose = self._base_pose.copy()
+        # Reused reference - final pose lives inside the mixer now.
         self._running = False
         self._fps = self._config.display.fps
         self._clock: Optional[pygame.time.Clock] = None
 
+    # ------------------------------------------------------------------
+    # Public properties (read-only surface for inspection / tests)
+    # ------------------------------------------------------------------
     @property
     def config(self) -> EngineConfig:
         return self._config
@@ -68,9 +74,20 @@ class AnimationEngine:
         return self._look
 
     @property
+    def micro_motion(self) -> MicroMotion:
+        return self._micro
+
+    @property
     def renderer(self) -> Renderer:
         return self._renderer
 
+    @property
+    def current_pose(self) -> EyePair:
+        return self._mixer.get_final_pose()
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
     def initialize(self, initial_state: str = "calm") -> None:
         self._state_machine.initialize(initial_state)
 
@@ -88,40 +105,38 @@ class AnimationEngine:
     def look_at(self, x: float, y: float) -> None:
         self._look.look_at(x, y)
 
-    def _apply_controllers(self, pose: EyePair) -> EyePair:
-        result = pose.copy()
-        look_dx, look_dy = self._look.get_offsets()
-        micro_dx, micro_dy = self._micro.get_offsets()
-        bw = self._blink.blink_weight
-
-        for eye, sign in [(result.left, -1.0), (result.right, 1.0)]:
-            eye.look_offset_x += look_dx
-            eye.look_offset_y += look_dy
-            eye.micro_offset_x += micro_dx + sign * 0.3
-            eye.micro_offset_y += micro_dy
-            eye.blink_weight = max(eye.blink_weight, bw)
-            if bw > 0.01:
-                eye.lid_openness = min(eye.lid_openness, 1.0 - bw)
-
-        return result
-
+    # ------------------------------------------------------------------
+    # Frame step - pure data plumbing, no allocations on the hot path.
+    # ------------------------------------------------------------------
     def step(self, dt_ms: float) -> EyePair:
         dt_s = dt_ms / 1000.0
 
+        # Update controllers; each controller's internal state mutates, then
+        # we read the current output values to pass into the mixer as layers.
         self._state_machine.update(dt_ms)
-        self._mixer.update(dt_ms)
         self._blink.update(dt_ms)
         self._look.update(dt_s)
         self._micro.update(dt_s)
 
-        base = self._mixer.get_pose()
-        self._final_pose = self._apply_controllers(base)
-        return self._final_pose
+        bw = self._blink.blink_weight
+        look_dx, look_dy = self._look.get_offsets()
+        micro_dx, micro_dy = self._micro.get_offsets()
 
-    @property
-    def current_pose(self) -> EyePair:
-        return self._final_pose
+        # Mixer updates the state pose and composes all layers into its
+        # internal final_pose buffer.
+        self._mixer.update(
+            dt_ms,
+            blink_weight=bw,
+            look_offsets=(look_dx, look_dy),
+            micro_offsets=(micro_dx, micro_dy),
+            speech_pulse=0.0,
+        )
 
+        return self._mixer.get_final_pose()
+
+    # ------------------------------------------------------------------
+    # Video / event loop
+    # ------------------------------------------------------------------
     def init_video(self, windowed: bool = True) -> None:
         if not pygame.get_init():
             pygame.init()
@@ -131,7 +146,7 @@ class AnimationEngine:
     def render_frame(self) -> None:
         if not self._renderer.initialized:
             raise RuntimeError("Video not initialized. Call init_video() first.")
-        self._renderer.render(self._final_pose)
+        self._renderer.render(self._mixer.get_final_pose())
 
     @staticmethod
     def _process_events() -> bool:

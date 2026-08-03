@@ -24,11 +24,6 @@ class ThinkingAnimation(AnimationState):
         super().__init__(config)
         self._entry_duration_ms = 400.0
         self._exit_duration_ms = 300.0
-        layout = config.layout
-        self._base_radius = layout.eye_radius
-        self._left_cx = config.display.width * 0.5 - layout.eye_spacing * 0.5
-        self._right_cx = config.display.width * 0.5 + layout.eye_spacing * 0.5
-        self._cy = layout.center_y
 
     def entry_pose(self, t: float, pose: "EyePair") -> None:
         target_radius = self._base_radius * 0.97

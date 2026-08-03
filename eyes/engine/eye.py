@@ -3,11 +3,47 @@ Single eye rig with all procedural animation parameters.
 
 Every animation is performed by smoothly interpolating these values.
 No image assets are used - rendering is entirely procedural from this state.
+
+All interpolation is performed IN-PLACE on preallocated instances to avoid
+per-frame allocation pressure. Use ``copy_from``/``blend_from_into``/``lerp_into``
+rather than constructing new EyeParams objects each frame.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Tuple
+
+
+# ---------------------------------------------------------------------------
+# Preallocated defaults used to reset() an instance without allocation.
+# ---------------------------------------------------------------------------
+_DEFAULT_PARAMS = {
+    "pos_x": 0.0,
+    "pos_y": 0.0,
+    "radius": 90.0,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
+    "stretch": 0.0,
+    "squash": 0.0,
+    "rotation": 0.0,
+    "blink_weight": 0.0,
+    "lid_openness": 1.0,
+    "look_offset_x": 0.0,
+    "look_offset_y": 0.0,
+    "emotion_blend_weight": 0.0,
+    "micro_offset_x": 0.0,
+    "micro_offset_y": 0.0,
+    "bounce_offset_x": 0.0,
+    "bounce_offset_y": 0.0,
+    "opacity": 1.0,
+    "glow_strength": 0.0,
+    "iris_scale": 1.0,
+    "upper_lid_curvature": 0.0,
+    "lower_lid_curvature": 0.0,
+}
+
+_PARAM_NAMES: Tuple[str, ...] = tuple(_DEFAULT_PARAMS.keys())
 
 
 @dataclass
@@ -36,79 +72,70 @@ class EyeParams:
     lower_lid_curvature: float = 0.0
 
     def copy(self) -> "EyeParams":
-        return EyeParams(
-            pos_x=self.pos_x,
-            pos_y=self.pos_y,
-            radius=self.radius,
-            scale_x=self.scale_x,
-            scale_y=self.scale_y,
-            stretch=self.stretch,
-            squash=self.squash,
-            rotation=self.rotation,
-            blink_weight=self.blink_weight,
-            lid_openness=self.lid_openness,
-            look_offset_x=self.look_offset_x,
-            look_offset_y=self.look_offset_y,
-            emotion_blend_weight=self.emotion_blend_weight,
-            micro_offset_x=self.micro_offset_x,
-            micro_offset_y=self.micro_offset_y,
-            bounce_offset_x=self.bounce_offset_x,
-            bounce_offset_y=self.bounce_offset_y,
-            opacity=self.opacity,
-            glow_strength=self.glow_strength,
-            iris_scale=self.iris_scale,
-            upper_lid_curvature=self.upper_lid_curvature,
-            lower_lid_curvature=self.lower_lid_curvature,
-        )
+        new = EyeParams()
+        for name in _PARAM_NAMES:
+            setattr(new, name, getattr(self, name))
+        return new
+
+    def copy_from(self, other: "EyeParams") -> None:
+        for name in _PARAM_NAMES:
+            setattr(self, name, getattr(other, name))
 
     def reset(self) -> None:
-        self.pos_x = 0.0
-        self.pos_y = 0.0
-        self.radius = 90.0
-        self.scale_x = 1.0
-        self.scale_y = 1.0
-        self.stretch = 0.0
-        self.squash = 0.0
-        self.rotation = 0.0
-        self.blink_weight = 0.0
-        self.lid_openness = 1.0
-        self.look_offset_x = 0.0
-        self.look_offset_y = 0.0
-        self.emotion_blend_weight = 0.0
-        self.micro_offset_x = 0.0
-        self.micro_offset_y = 0.0
-        self.bounce_offset_x = 0.0
-        self.bounce_offset_y = 0.0
-        self.opacity = 1.0
-        self.glow_strength = 0.0
-        self.iris_scale = 1.0
-        self.upper_lid_curvature = 0.0
-        self.lower_lid_curvature = 0.0
+        for name, value in _DEFAULT_PARAMS.items():
+            setattr(self, name, value)
+
+    def lerp_into(self, a: "EyeParams", b: "EyeParams", t: float) -> None:
+        """Set ``self = a + (b - a) * t``.  Zero allocation.
+
+        This is the hot-path interpolation used by the mixer every frame.
+        """
+        for name in _PARAM_NAMES:
+            av = getattr(a, name)
+            bv = getattr(b, name)
+            setattr(self, name, av + (bv - av) * t)
+
+    def blend_accumulate(self, other: "EyeParams", weight: float) -> None:
+        """Add ``other * weight`` into this instance (for additive layers)."""
+        if weight == 0.0:
+            return
+        for name in _PARAM_NAMES:
+            v = getattr(self, name)
+            setattr(self, name, v + getattr(other, name) * weight)
+
+    def blend_max(self, other: "EyeParams") -> None:
+        """Component-wise max; useful for blink weight, lid closure, etc."""
+        for name in _PARAM_NAMES:
+            ov = getattr(other, name)
+            sv = getattr(self, name)
+            if ov > sv:
+                setattr(self, name, ov)
+
+    def clamp_safe(self) -> None:
+        """Clamp ratios that can produce rendering artefacts when out of range."""
+        if self.opacity > 1.0:
+            self.opacity = 1.0
+        elif self.opacity < 0.0:
+            self.opacity = 0.0
+        if self.scale_x < 0.01:
+            self.scale_x = 0.01
+        if self.scale_y < 0.01:
+            self.scale_y = 0.01
+        if self.radius < 1.0:
+            self.radius = 1.0
+        if self.iris_scale < 0.1:
+            self.iris_scale = 0.1
 
 
 def blend_params(a: EyeParams, b: EyeParams, t: float) -> EyeParams:
-    """Linearly interpolate between two EyeParams states."""
+    """Linearly interpolate between two EyeParams states.
+
+    Retained for compatibility.  Prefer ``EyeParams.lerp_into`` when the
+    destination is already allocated (the common hot-path case).
+    """
     result = a.copy()
-    result.pos_x = a.pos_x + (b.pos_x - a.pos_x) * t
-    result.pos_y = a.pos_y + (b.pos_y - a.pos_y) * t
-    result.radius = a.radius + (b.radius - a.radius) * t
-    result.scale_x = a.scale_x + (b.scale_x - a.scale_x) * t
-    result.scale_y = a.scale_y + (b.scale_y - a.scale_y) * t
-    result.stretch = a.stretch + (b.stretch - a.stretch) * t
-    result.squash = a.squash + (b.squash - a.squash) * t
-    result.rotation = a.rotation + (b.rotation - a.rotation) * t
-    result.blink_weight = a.blink_weight + (b.blink_weight - a.blink_weight) * t
-    result.lid_openness = a.lid_openness + (b.lid_openness - a.lid_openness) * t
-    result.look_offset_x = a.look_offset_x + (b.look_offset_x - a.look_offset_x) * t
-    result.look_offset_y = a.look_offset_y + (b.look_offset_y - a.look_offset_y) * t
-    result.emotion_blend_weight = a.emotion_blend_weight + (b.emotion_blend_weight - a.emotion_blend_weight) * t
-    result.micro_offset_x = a.micro_offset_x + (b.micro_offset_x - a.micro_offset_x) * t
-    result.micro_offset_y = a.micro_offset_y + (b.micro_offset_y - a.micro_offset_y) * t
-    result.bounce_offset_x = a.bounce_offset_x + (b.bounce_offset_x - a.bounce_offset_x) * t
-    result.bounce_offset_y = a.bounce_offset_y + (b.bounce_offset_y - a.bounce_offset_y) * t
-    result.opacity = a.opacity + (b.opacity - a.opacity) * t
-    result.glow_strength = a.glow_strength + (b.glow_strength - a.glow_strength) * t
-    result.iris_scale = a.iris_scale + (b.iris_scale - b.iris_scale) * t
-    result.upper_lid_curvature = a.upper_lid_curvature + (b.upper_lid_curvature - a.upper_lid_curvature) * t
-    result.lower_lid_curvature = a.lower_lid_curvature + (b.lower_lid_curvature - a.lower_lid_curvature) * t
+    for name in _PARAM_NAMES:
+        av = getattr(a, name)
+        bv = getattr(b, name)
+        setattr(result, name, av + (bv - av) * t)
     return result
