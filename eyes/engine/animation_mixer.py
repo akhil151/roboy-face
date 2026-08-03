@@ -62,19 +62,39 @@ class LayerSlots:
 
 
 class AnimationMixer:
-    def __init__(self, config: EngineConfig, default_pose: EyePair) -> None:
+    """Layered animation composition pipeline.
+
+    Constructor overloads (backward-compatible):
+      AnimationMixer(config, default_pose)  -- production (AnimationEngine)
+      AnimationMixer(config, state_machine) -- standalone / test
+    """
+
+    def __init__(
+        self,
+        config: EngineConfig,
+        default_pose_or_sm: "EyePair | StateMachine",
+    ) -> None:
+        from .state_machine import StateMachine as _SM
         self._config = config
         self._current_state: Optional["AnimationState"] = None
 
+        if isinstance(default_pose_or_sm, _SM):
+            # Standalone / test path: build scratch buffers from a neutral pose.
+            _sm = default_pose_or_sm
+            _sm._attach_mixer(self)
+            _default = EyePair()
+        else:
+            _default = default_pose_or_sm
+
         # Reused output buffers - never replace these objects, only mutate.
-        self._current_pose: EyePair = default_pose.copy()
-        self._final_pose: EyePair = default_pose.copy()
+        self._current_pose: EyePair = _default.copy()
+        self._final_pose: EyePair = _default.copy()
 
         # Scratch buffers used only inside update() to avoid allocations.
-        self._scratch_from: EyePair = default_pose.copy()
-        self._scratch_to: EyePair = default_pose.copy()
-        self._scratch_loop: EyePair = default_pose.copy()
-        self._scratch_entry: EyePair = default_pose.copy()
+        self._scratch_from: EyePair = _default.copy()
+        self._scratch_to: EyePair = _default.copy()
+        self._scratch_loop: EyePair = _default.copy()
+        self._scratch_entry: EyePair = _default.copy()
 
         self._transition: Optional[_ActiveTransition] = None
         self._loop_elapsed_ms: float = 0.0
@@ -165,13 +185,27 @@ class AnimationMixer:
     def update(
         self,
         dt_ms: float,
-        blink_weight: float = 0.0,
+        blink_weight: "float | EyePair" = 0.0,
         look_offsets: Tuple[float, float] = (0.0, 0.0),
         micro_offsets: Tuple[float, float] = (0.0, 0.0),
         speech_pulse: float = 0.0,
+        dst: Optional[EyePair] = None,
     ) -> None:
+        """Advance the animation mixer by dt_ms.
+
+        Accepts both keyword layer inputs (production path) and test calling
+        conventions:
+          update(dt_ms, blink_weight=bw, look_offsets=...) -- production hot-path
+          update(dt_ms, dst_pair)                           -- test / standalone
+        """
+        # Detect EyePair passed as 2nd positional argument (test / standalone compat path).
+        if isinstance(blink_weight, EyePair):
+            dst = blink_weight
+            bw_val: float = 0.0
+        else:
+            bw_val = float(blink_weight)
         self._layer_weights.reset()
-        self._layer_weights.blink = blink_weight
+        self._layer_weights.blink = bw_val
         self._layer_weights.look = look_offsets
         self._layer_weights.micro = micro_offsets
         self._layer_weights.speech = speech_pulse
@@ -203,8 +237,9 @@ class AnimationMixer:
             entry_to_loop_t = max(0.0, min(1.0, eased_t * 1.4))
             self._scratch_entry.lerp_into(self._scratch_to, self._scratch_loop, entry_to_loop_t)
 
-            # Blend "from" side with composed "to + loop" side
-            self._current_pose.lerp_into(self._scratch_from, self._scratch_entry, eased_t)
+            # Blend "from" side with composed "to + loop" side using cinematic emotion morphing
+            from .motion_primitives import apply_emotion_morph_pair
+            apply_emotion_morph_pair(self._current_pose, self._scratch_from, self._scratch_entry, eased_t)
 
             if raw_t >= 1.0:
                 tr.complete = True
@@ -217,19 +252,21 @@ class AnimationMixer:
 
         # 2. Compose layers on top of state pose -> _final_pose
         self._compose_layers(
-            blink_weight=blink_weight,
+            blink_weight=bw_val,
             look_offsets=look_offsets,
             micro_offsets=micro_offsets,
             speech_pulse=speech_pulse,
         )
 
+        # 3. If a dst EyePair was passed (test/standalone compat), copy into it.
+        if dst is not None:
+            dst.copy_from(self._final_pose)
+
     # ------------------------------------------------------------------
     # Layer composition
     #
     # Layers mutate _final_pose directly.  Each layer is conceptually
-    # additive (look/micro offsets) or priority-max (blink).  The design
-    # intentionally mirrors the specification so Phase 2 only needs to
-    # fill in _apply_speech_pulse.
+    # additive (look/micro offsets) or priority-max (blink).
     # ------------------------------------------------------------------
     def _compose_layers(
         self,
@@ -281,14 +318,18 @@ class AnimationMixer:
 
     @staticmethod
     def _apply_speech_pulse(final: EyePair, pulse: float) -> None:
-        """Reserved for Phase 2.  Pulse range is [0,1] from speech envelope.
+        """Speech pulse layer: procedurally influences bounce, stretch, squash, and scale.
 
-        Left intentionally as a no-op stub today so the composition pipeline
-        already has the slot wired; future animations will modulate
-        bounce_offset_y / stretch by the pulse amount here.
+        Pulse input is in [0, 1] representing current audio amplitude / speech energy.
+        Applies zero-allocation additive procedural deformation to both eyes.
         """
         if pulse <= 0.0:
             return
+        p = max(0.0, min(1.0, pulse))
         for eye in (final.left, final.right):
-            eye.bounce_offset_y += -abs(pulse) * 2.0
-            eye.stretch += pulse * 0.008
+            eye.bounce_offset_y += -p * 3.5
+            eye.stretch += p * 0.04
+            eye.squash += p * 0.02
+            eye.scale_y += p * 0.025
+            eye.scale_x -= p * 0.01
+

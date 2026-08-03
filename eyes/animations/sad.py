@@ -8,44 +8,38 @@ Communicates sadness, disappointment, low mood.
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
-from .base import AnimationState
+from .expressive import ExpressiveAnimation
+from ..engine.personality import PersonalityProfile, PersonalityBundle
 
 if TYPE_CHECKING:
-    from ..engine.config import EngineConfig
     from ..engine.eye_pair import EyePair
 
 
-class SadAnimation(AnimationState):
+class SadAnimation(ExpressiveAnimation):
     name = "sad"
 
-    def __init__(self, config: "EngineConfig") -> None:
-        super().__init__(config)
-        self._entry_duration_ms = 600.0
-        self._exit_duration_ms = 450.0
+    def configure_personality(self) -> PersonalityProfile:
+        return PersonalityProfile.sad()
 
-    def entry_pose(self, t: float, pose: "EyePair") -> None:
+    def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
         target_radius = self._base_radius * 0.97
         for eye, cx, tilt in [(pose.left, self._left_cx, 1.0), (pose.right, self._right_cx, -1.0)]:
-            eye.pos_x = eye.pos_x + (cx + tilt * 2.0 - eye.pos_x) * t
-            eye.pos_y = eye.pos_y + (self._cy + 5.0 - eye.pos_y) * t
-            eye.radius = eye.radius + (target_radius - eye.radius) * t
-            eye.scale_y = eye.scale_y + (0.91 - eye.scale_y) * t
-            eye.lid_openness = eye.lid_openness + (0.75 - eye.lid_openness) * t
-            eye.upper_lid_curvature = eye.upper_lid_curvature + (0.14 - eye.upper_lid_curvature) * t
-            eye.lower_lid_curvature = eye.lower_lid_curvature + (0.10 - eye.lower_lid_curvature) * t
-            eye.iris_scale = eye.iris_scale + (0.96 - eye.iris_scale) * t
-            eye.look_offset_y += 6.0 * t
+            eye.pos_x = cx + tilt * 2.0
+            eye.pos_y = self._cy + 5.0
+            eye.radius = target_radius
+            eye.scale_y = 0.91
+            eye.lid_openness = 0.75
+            eye.upper_lid_curvature = 0.14
+            eye.lower_lid_curvature = 0.10
+            eye.iris_scale = 0.96
+            eye.look_offset_y = 6.0
 
-    def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: "EyePair") -> None:
-        t_s = elapsed_ms / 1000.0
-        slow = math.sin(t_s * 2.0 * math.pi / 6.5) * 0.01
-        droop = abs(math.sin(t_s * 2.0 * math.pi / 6.5)) * 0.01
-        for eye in [pose.left, pose.right]:
-            eye.scale_y += slow
-            eye.upper_lid_curvature += droop
-
-    def exit_pose(self, t: float, pose: "EyePair") -> None:
-        pass
+    def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
+        return {
+            "bounce": 0.0,
+            "pulse": 0.0,
+            "scan": 0.0,
+            "blink_motion": 0.5,
+        }

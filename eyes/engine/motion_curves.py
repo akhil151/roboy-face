@@ -126,7 +126,7 @@ PROPERTY_CURVES: Dict[str, PropertyCurve] = {
     "radius": PropertyCurve(
         name="radius",
         units="px",
-        default_range=(60.0, 120.0),
+        default_range=(30.0, 100.0),
         neutral=90.0,
         default_ease=ease_out_cubic,
         perceptual_xform=_sqrt_xform,
@@ -429,8 +429,9 @@ def cinematic_delta(
     if delta == 0.0:
         return base
     # Anticipation: at the very beginning, pull slightly the wrong way.
+    # Skip at t=0 exactly so the blend starts precisely at from_value.
     ant_amount = curve.anticipation * global_anticipation_scale
-    if ant_amount > 0.0 and t_raw < 0.35:
+    if ant_amount > 0.0 and 0.0 < t_raw < 0.35:
         ant_window = 1.0 - (t_raw / 0.35)
         ant_window = ant_window * ant_window  # squared falloff
         base -= delta * ant_amount * ant_window
@@ -449,8 +450,14 @@ def cinematic_delta(
 # ---------------------------------------------------------------------------
 
 
-def group_property_names(group: str) -> list[str]:
+def group_property_names(group: str = "") -> "list[str] | dict[str, list[str]]":
     """Return property names belonging to a semantic group.
+
+    When called with no arguments (or group=""), returns a dict mapping
+    every group name to its property list.  This lets callers check how
+    many groups are defined (``len(group_property_names()) == 7``).
+
+    When called with a group name string, returns the list for that group.
 
     Groups:
       * "position" : pos_x, pos_y
@@ -461,7 +468,7 @@ def group_property_names(group: str) -> list[str]:
       * "offsets"  : look_offset_*, micro_offset_*, bounce_offset_*
       * "effects"  : opacity, glow_strength, emotion_blend_weight
     """
-    groups = {
+    groups: dict[str, list[str]] = {
         "position": ["pos_x", "pos_y"],
         "size": ["radius", "scale_x", "scale_y", "stretch", "squash"],
         "shape": ["radius", "scale_x", "scale_y", "stretch", "squash", "rotation"],
@@ -482,6 +489,10 @@ def group_property_names(group: str) -> list[str]:
         ],
         "effects": ["opacity", "glow_strength", "emotion_blend_weight"],
     }
+    if not group:
+        # No-arg call: return the whole groups dict so callers can inspect
+        # how many groups exist and what they contain.
+        return groups
     if group not in groups:
         raise KeyError(f"Unknown property group '{group}'. Available: {sorted(groups.keys())}")
     return groups[group]

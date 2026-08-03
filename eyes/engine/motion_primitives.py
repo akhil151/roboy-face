@@ -329,9 +329,14 @@ def apply_breathing_pair(
     elapsed_ms: float,
     cfg: BreathingConfig,
     amount: float = 1.0,
-) -> None:
+) -> float:
+    """Apply breathing to both eyes and return the breathing envelope [0,1]."""
+    t = elapsed_ms / 1000.0
+    main = math.sin(t * 2.0 * math.pi / cfg.period_seconds + cfg.phase_offset)
+    envelope = clamp01((main + 1.0) * 0.5)  # remap [-1,1] → [0,1] for return
     apply_breathing(pose.left, dt_ms, elapsed_ms, cfg, amount * cfg.asymmetry_left)
     apply_breathing(pose.right, dt_ms, elapsed_ms, cfg, amount * cfg.asymmetry_right)
+    return envelope
 
 
 def apply_bounce(
@@ -364,9 +369,14 @@ def apply_bounce_pair(
     elapsed_ms: float,
     cfg: BounceConfig,
     amount: float = 1.0,
-) -> None:
+) -> float:
+    """Apply bounce to both eyes and return the current bounce phase [0,1]."""
+    t = elapsed_ms / 1000.0
+    phase = t * cfg.frequency_hz * 2.0 * math.pi + cfg.phase_offset
+    envelope = clamp01(abs(math.sin(phase)))  # 0..1 phase indicator
     apply_bounce(pose.left, dt_ms, elapsed_ms, cfg, amount * cfg.asymmetry_left)
     apply_bounce(pose.right, dt_ms, elapsed_ms, cfg, amount * cfg.asymmetry_right)
+    return envelope
 
 
 def overshoot_envelope(t: float, cfg: OvershootConfig) -> float:
@@ -405,6 +415,7 @@ def apply_drift(
 ) -> Tuple[float, float]:
     """Add slow pseudo-Perlin drift offsets to a single eye.
 
+    Writes to look_offset_x/y (slow gaze wandering).
     Returns the (dx, dy) applied for diagnostic / compositing use."""
     if amount <= 0.0:
         return (0.0, 0.0)
@@ -413,8 +424,8 @@ def apply_drift(
     ny = _product_sine_noise(t + 17.3, cfg.seed + 31.7, cfg.harmonic_count, cfg.harmonic_decay)
     dx = nx * cfg.amplitude_px * amount
     dy = ny * cfg.amplitude_px * cfg.vertical_ratio * amount
-    p.micro_offset_x += dx
-    p.micro_offset_y += dy
+    p.look_offset_x += dx
+    p.look_offset_y += dy
     return (dx, dy)
 
 
@@ -424,7 +435,8 @@ def apply_drift_pair(
     elapsed_ms: float,
     cfg: DriftConfig,
     amount: float = 1.0,
-) -> None:
+) -> float:
+    """Apply drift to both eyes and return a normalized drift magnitude [0,1]."""
     cfg_r = DriftConfig(
         amplitude_px=cfg.amplitude_px,
         period_seconds=cfg.period_seconds,
@@ -433,8 +445,10 @@ def apply_drift_pair(
         seed=cfg.seed + 7.3,
         vertical_ratio=cfg.vertical_ratio,
     )
-    apply_drift(pose.left, dt_ms, elapsed_ms, cfg, amount)
-    apply_drift(pose.right, dt_ms, elapsed_ms, cfg_r, amount)
+    dl = apply_drift(pose.left, dt_ms, elapsed_ms, cfg, amount)
+    dr = apply_drift(pose.right, dt_ms, elapsed_ms, cfg_r, amount)
+    mag = (abs(dl[0]) + abs(dl[1]) + abs(dr[0]) + abs(dr[1])) / (4.0 * max(cfg.amplitude_px, 0.001) * amount + 1e-9)
+    return clamp01(mag)
 
 
 def apply_pulse(
@@ -512,14 +526,18 @@ def apply_stretch(p: EyeParams, t: float, cfg: StretchConfig, amount: float = 1.
     p.lower_lid_curvature -= env * cfg.curvature_bias
 
 
-def apply_squash_pair(pose: EyePair, t: float, cfg: SquashConfig, amount: float = 1.0) -> None:
+def apply_squash_pair(pose: EyePair, t: float, cfg: SquashConfig, amount: float = 1.0) -> float:
+    """Apply squash to both eyes and return the effective weight used."""
     apply_squash(pose.left, t, cfg, amount)
     apply_squash(pose.right, t, cfg, amount * 0.97)
+    return amount
 
 
-def apply_stretch_pair(pose: EyePair, t: float, cfg: StretchConfig, amount: float = 1.0) -> None:
+def apply_stretch_pair(pose: EyePair, t: float, cfg: StretchConfig, amount: float = 1.0) -> float:
+    """Apply stretch to both eyes and return the effective weight used."""
     apply_stretch(pose.left, t, cfg, amount)
     apply_stretch(pose.right, t, cfg, amount * 0.97)
+    return amount
 
 
 # ===========================================================================
@@ -554,6 +572,11 @@ class SettledValue:
     def target(self) -> float:
         return self._spring.target
 
+    @target.setter
+    def target(self, value: float) -> None:
+        """Compatibility setter: sv.target = x  is equivalent to sv.set_target(x)."""
+        self._spring.set_target(value)
+
     def at_rest(self) -> bool:
         return self._spring.at_rest(self._cfg.snap_threshold, self._cfg.snap_threshold * 100.0)
 
@@ -562,10 +585,34 @@ class SettledValue:
 
 
 class SettledPair:
-    """Two settled values (X/Y) for 2-D things like position offsets."""
+    """Two settled values (X/Y) for 2-D things like position offsets.
 
-    def __init__(self, cfg: SettleConfig | None = None, initial: Tuple[float, float] = (0.0, 0.0)) -> None:
-        c = cfg or SettleConfig()
+    Constructor accepts two calling conventions:
+      - Production: SettledPair(cfg=SettleConfig(), initial=(0.0, 0.0))
+      - Compact:    SettledPair(initial_x, stiffness)  e.g. SettledPair(0.0, 5.0)
+    """
+
+    def __init__(
+        self,
+        cfg_or_initial: "SettleConfig | float | Tuple[float, float] | None" = None,
+        initial_or_stiffness: "Tuple[float, float] | float" = (0.0, 0.0),
+    ) -> None:
+        # Detect compact (initial_x, stiffness) two-float calling convention.
+        # Also handles (initial_tuple, stiffness) as used in tests.
+        if isinstance(cfg_or_initial, (int, float)):
+            # (initial_x, stiffness) compact form
+            stiffness = float(initial_or_stiffness) if isinstance(initial_or_stiffness, (int, float)) else 5.0
+            c = SettleConfig(stiffness=max(1.0, stiffness), damping=max(1.0, stiffness * 0.6), mass=1.0)
+            ix = float(cfg_or_initial)
+            initial: Tuple[float, float] = (ix, 0.0)
+        elif isinstance(cfg_or_initial, tuple):
+            # (initial_tuple, stiffness) form: SettledPair((0.0, 0.0), 5.0)
+            stiffness = float(initial_or_stiffness) if isinstance(initial_or_stiffness, (int, float)) else 5.0
+            c = SettleConfig(stiffness=max(1.0, stiffness), damping=max(1.0, stiffness * 0.6), mass=1.0)
+            initial = (float(cfg_or_initial[0]), float(cfg_or_initial[1]))
+        else:
+            c = cfg_or_initial or SettleConfig()
+            initial = initial_or_stiffness if isinstance(initial_or_stiffness, tuple) else (0.0, 0.0)  # type: ignore[assignment]
         self.x = SettledValue(c, initial[0])
         self.y = SettledValue(c, initial[1])
 
@@ -576,6 +623,16 @@ class SettledPair:
     def set_immediate(self, x: float, y: float) -> None:
         self.x.set_immediate(x)
         self.y.set_immediate(y)
+
+    @property
+    def target(self) -> Tuple[float, float]:
+        return (self.x.target, self.y.target)
+
+    @target.setter
+    def target(self, xy: Tuple[float, float]) -> None:
+        """Compatibility setter: sp.target = (x, y)  is equivalent to sp.set_target(x, y)."""
+        self.x.set_target(xy[0])
+        self.y.set_target(xy[1])
 
     @property
     def value(self) -> Tuple[float, float]:
@@ -662,6 +719,18 @@ class IdleNoisePrimitive:
     def set_config(self, cfg: IdleNoiseConfig) -> None:
         self._cfg = cfg
 
+    def sample(self, elapsed_s: float) -> Tuple[float, float]:
+        """Return the (nx, ny) noise position channel values at elapsed_s.
+
+        Values are in [-1, 1] and are smooth / continuous.
+        Compatibility entry point for callers that want the raw noise
+        without writing into an EyeParams."""
+        cfg = self._cfg
+        t = elapsed_s * cfg.speed
+        nx = _product_sine_noise(t, self._seed, 3, 0.55)
+        ny = _product_sine_noise(t + 9.1, self._seed + 3.3, 3, 0.55)
+        return (nx, ny)
+
     def apply(self, p: EyeParams, elapsed_s: float, amount: float = 1.0) -> None:
         if amount <= 0.0:
             return
@@ -682,15 +751,28 @@ class IdleNoisePrimitive:
 
 
 class IdleNoisePair:
-    """Idle noise for both eyes with slight inter-ocular decorrelation."""
+    """Idle noise for both eyes with slight inter-ocular decorrelation.
 
-    def __init__(self, cfg: IdleNoiseConfig | None = None) -> None:
+    Constructor accepts two calling conventions:
+      - Production: IdleNoisePair(cfg)           — same config for both eyes
+      - Extended:   IdleNoisePair(cfg_l, cfg_r)  — independent per-eye configs
+    """
+
+    def __init__(
+        self,
+        cfg: IdleNoiseConfig | None = None,
+        cfg_right: IdleNoiseConfig | None = None,
+    ) -> None:
         self._left = IdleNoisePrimitive(cfg, seed=random.uniform(0.0, 50.0))
-        self._right = IdleNoisePrimitive(cfg, seed=random.uniform(50.0, 100.0))
+        self._right = IdleNoisePrimitive(cfg_right or cfg, seed=random.uniform(50.0, 100.0))
 
     def set_config(self, cfg: IdleNoiseConfig) -> None:
         self._left.set_config(cfg)
         self._right.set_config(cfg)
+
+    def sample(self, elapsed_s: float) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """Return ((lx, ly), (rx, ry)) noise position values for both eyes."""
+        return (self._left.sample(elapsed_s), self._right.sample(elapsed_s))
 
     def apply(self, pose: EyePair, elapsed_s: float, amount: float = 1.0) -> None:
         self._left.apply(pose.left, elapsed_s, amount)
@@ -722,8 +804,21 @@ class MicroCorrectionPrimitive:
     def set_config(self, cfg: MicroCorrectionConfig) -> None:
         self._cfg = cfg
 
+    def reset(self) -> None:
+        """Reset internal timing so the primitive starts fresh."""
+        self._accum_s = 0.0
+        self._time_since_last = random.uniform(
+            self._cfg.interval_min_seconds, self._cfg.interval_max_seconds
+        )
+        self._settle_x.set_immediate(0.0)
+        self._settle_y.set_immediate(0.0)
+
     def get_offsets(self) -> Tuple[float, float]:
         return (self._settle_x.value, self._settle_y.value)
+
+    def offset(self) -> Tuple[float, float]:
+        """Alias for get_offsets() — compatibility entry point."""
+        return self.get_offsets()
 
     def update(self, dt_s: float, amount: float = 1.0) -> Tuple[float, float]:
         self._accum_s += dt_s
@@ -766,16 +861,19 @@ def apply_blink_compression(
     """Apply eye compression / expansion as a function of blink closure.
 
     ``blink_weight`` is the current closure in [0, 1] (from BlinkController).
-    The eyes squash on close and gently stretch on reopen to add weight."""
+    The eyes squash on close, compress their radius, and gently stretch on
+    reopen to add weight."""
     if amount <= 0.0:
         return
     bw = clamp01(blink_weight)
-    # Closure curve: rises to 1 at peak closure, falls back.
-    close_env = math.sin(bw * math.pi)
+    # Closure curve: rises from 0 at open (bw=0) to 1 at peak closure (bw=1).
+    close_env = math.sin(bw * math.pi * 0.5)
     p.scale_x += close_env * cfg.compression_amount * amount
     p.scale_y -= close_env * cfg.compression_amount * 0.8 * amount
     p.squash += close_env * cfg.squash_on_close * amount
     p.bounce_offset_y += close_env * cfg.y_offset_px * amount
+    # Radius compress on full closure for physical plausibility.
+    p.radius -= close_env * cfg.compression_amount * p.radius * 0.25 * amount
     # Surge curvature at peak closure for a "tight" squeeze look.
     curvature_surge = (1.0 - abs(bw - 0.5) * 2.0) ** 2
     p.upper_lid_curvature += curvature_surge * cfg.curvature_surge * amount
@@ -788,9 +886,11 @@ def apply_blink_compression_pair(
     blink_weight_right: float,
     cfg: BlinkMotionConfig,
     amount: float = 1.0,
-) -> None:
+) -> float:
+    """Apply blink compression to both eyes and return effective amount used."""
     apply_blink_compression(pose.left, blink_weight_left, cfg, amount)
     apply_blink_compression(pose.right, blink_weight_right, cfg, amount)
+    return amount
 
 
 # ===========================================================================
@@ -803,7 +903,12 @@ class AttentionShiftPrimitive:
 
     Anticipates slightly BACK, then fires FORWARD with overshoot, then
     settles with a spring.  Good for 'focus' state entry, 'listening'
-    transitions, and any dramatic look-at call."""
+    transitions, and any dramatic look-at call.
+
+    ``trigger`` accepts two calling conventions:
+      - Production: trigger(dx, dy, duration_ms=350.0)
+      - Compact:    trigger((dx, dy), duration_ms)
+    """
 
     def __init__(self, cfg: AttentionShiftConfig | None = None) -> None:
         self._cfg = cfg or AttentionShiftConfig()
@@ -819,10 +924,25 @@ class AttentionShiftPrimitive:
         self._cfg = cfg
         self._spring.set_config(cfg.spring_config)
 
-    def trigger(self, dx: float, dy: float, duration_ms: float = 350.0) -> None:
-        self._dx = dx
-        self._dy = dy
-        self._duration_s = max(0.05, duration_ms / 1000.0)
+    def trigger(
+        self,
+        dx_or_target: "float | Tuple[float, float]",
+        dy_or_duration: float = 350.0,
+        duration_ms: float = 350.0,
+    ) -> None:
+        """Start an attention shift.
+
+        Calling conventions:
+          trigger(dx, dy, duration_ms=350)          # keyword/positional
+          trigger((dx, dy), duration_ms)            # tuple target + scalar duration
+        """
+        if isinstance(dx_or_target, tuple):
+            self._dx, self._dy = dx_or_target
+            self._duration_s = max(0.05, dy_or_duration / 1000.0)
+        else:
+            self._dx = float(dx_or_target)
+            self._dy = float(dy_or_duration)
+            self._duration_s = max(0.05, duration_ms / 1000.0)
         self._progress_s = 0.0
         self._active = True
 
@@ -846,10 +966,6 @@ class AttentionShiftPrimitive:
             env = overshoot_envelope(t, overshoot_cfg)
             tx = self._dx * env * amount
             ty = self._dy * env * amount
-            # Anticipation: tiny reverse movement first.
-            if t < overshoot_cfg.overshoot_peak * 0.5:
-                squash_t = t / max(overshoot_cfg.overshoot_peak * 0.5, 0.0001)
-                # We just pass target via spring.
             self._spring.set_target(tx, ty)
             if t >= 1.0 and self._spring.at_rest():
                 self._active = False
@@ -857,6 +973,16 @@ class AttentionShiftPrimitive:
         else:
             self._tweens.clear()
         return self._spring.update(dt_s)
+
+    def apply_to_pair(
+        self, pose: EyePair, dt_s: float, amount: float = 1.0
+    ) -> None:
+        """Apply this frame's attention shift offsets into both eyes."""
+        dx, dy = self.update(dt_s, amount)
+        pose.left.look_offset_x += dx * self._cfg.asymmetry_left
+        pose.left.look_offset_y += dy * self._cfg.asymmetry_left
+        pose.right.look_offset_x += dx * self._cfg.asymmetry_right
+        pose.right.look_offset_y += dy * self._cfg.asymmetry_right
 
 
 # ===========================================================================

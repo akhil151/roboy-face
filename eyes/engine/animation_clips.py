@@ -359,9 +359,9 @@ def make_basic_exit_clip(
 
 
 def make_breathing_loop_clip(
-    *,
     breathing_cfg: Optional[BreathingConfig] = None,
     drift_cfg: Optional[DriftConfig] = None,
+    *,
     breathing_amount: float = 1.0,
     drift_amount: float = 0.8,
 ) -> AnimationClip:

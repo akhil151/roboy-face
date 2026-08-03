@@ -8,44 +8,35 @@ Communicates that the robot is actively talking.
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
-from .base import AnimationState
+from .expressive import ExpressiveAnimation
+from ..engine.personality import PersonalityProfile, PersonalityBundle
 
 if TYPE_CHECKING:
-    from ..engine.config import EngineConfig
     from ..engine.eye_pair import EyePair
 
 
-class SpeakingAnimation(AnimationState):
+class SpeakingAnimation(ExpressiveAnimation):
     name = "speaking"
 
-    def __init__(self, config: "EngineConfig") -> None:
-        super().__init__(config)
-        self._entry_duration_ms = 250.0
-        self._exit_duration_ms = 250.0
+    def configure_personality(self) -> PersonalityProfile:
+        return PersonalityProfile.speaking()
 
-    def entry_pose(self, t: float, pose: "EyePair") -> None:
+    def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
         target_radius = self._base_radius * 1.02
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
-            eye.pos_x = eye.pos_x + (cx - eye.pos_x) * t
-            eye.pos_y = eye.pos_y + (self._cy - 2.0 - eye.pos_y) * t
-            eye.radius = eye.radius + (target_radius - eye.radius) * t
-            eye.scale_y = eye.scale_y + (1.03 - eye.scale_y) * t
-            eye.lid_openness = eye.lid_openness + (1.05 - eye.lid_openness) * t
-            eye.upper_lid_curvature = eye.upper_lid_curvature + (-0.04 - eye.upper_lid_curvature) * t
+            eye.pos_x = cx
+            eye.pos_y = self._cy - 2.0
+            eye.radius = target_radius
+            eye.scale_y = 1.03
+            eye.lid_openness = 1.05
+            eye.upper_lid_curvature = -0.04
 
-    def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: "EyePair") -> None:
-        t_s = elapsed_ms / 1000.0
-        bounce = -abs(math.sin(t_s * 2.0 * math.pi * 1.8)) * 2.0
-        stretch = math.sin(t_s * 2.0 * math.pi * 3.1) * 0.012
-        for eye in [pose.left, pose.right]:
-            eye.bounce_offset_y = bounce
-            eye.scale_y += math.sin(t_s * 2.0 * math.pi * 2.1) * 0.02
-            eye.stretch += stretch
-
-    def exit_pose(self, t: float, pose: "EyePair") -> None:
-        for eye in [pose.left, pose.right]:
-            eye.bounce_offset_y *= (1.0 - t)
-            eye.stretch *= (1.0 - t)
+    def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
+        return {
+            "bounce": 0.5,
+            "pulse": 0.4,
+            "scan": 0.0,
+            "blink_motion": 1.0,
+        }

@@ -21,6 +21,9 @@ from .spring import SpringConfig, Spring1D, Spring2D
 from .blink_controller import BlinkController, BlinkType
 from .look_controller import LookController
 from .micro_motion import MicroMotion
+from .animation_engine import AnimationEngine
+from .animation_mixer import AnimationMixer
+from .state_machine import StateMachine
 
 from . import motion_primitives
 from . import animation_clips

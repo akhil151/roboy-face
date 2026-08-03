@@ -44,6 +44,8 @@ class AnimationEngine:
         self._blink = BlinkController(self._config)
         self._look = LookController(self._config)
         self._micro = MicroMotion(self._config)
+        from .micro_behaviours import MicroBehaviourSystem
+        self._micro_behaviour = MicroBehaviourSystem(self._config)
 
         # Reused reference - final pose lives inside the mixer now.
         self._running = False
@@ -78,6 +80,10 @@ class AnimationEngine:
         return self._micro
 
     @property
+    def micro_behaviour_system(self) -> "MicroBehaviourSystem":
+        return self._micro_behaviour
+
+    @property
     def renderer(self) -> Renderer:
         return self._renderer
 
@@ -108,7 +114,7 @@ class AnimationEngine:
     # ------------------------------------------------------------------
     # Frame step - pure data plumbing, no allocations on the hot path.
     # ------------------------------------------------------------------
-    def step(self, dt_ms: float) -> EyePair:
+    def step(self, dt_ms: float, speech_pulse: float = 0.0) -> EyePair:
         dt_s = dt_ms / 1000.0
 
         # Update controllers; each controller's internal state mutates, then
@@ -120,19 +126,27 @@ class AnimationEngine:
 
         bw = self._blink.blink_weight
         look_dx, look_dy = self._look.get_offsets()
-        micro_dx, micro_dy = self._micro.get_offsets()
 
-        # Mixer updates the state pose and composes all layers into its
-        # internal final_pose buffer.
+        # Mixer updates the state pose and composes layers into internal final_pose.
         self._mixer.update(
             dt_ms,
             blink_weight=bw,
             look_offsets=(look_dx, look_dy),
-            micro_offsets=(micro_dx, micro_dy),
-            speech_pulse=0.0,
+            speech_pulse=speech_pulse,
         )
 
-        return self._mixer.get_final_pose()
+        final_pose = self._mixer.get_final_pose()
+
+        # Apply 7-layer autonomous MicroBehaviourSystem to the composed pose.
+        current_state = self._state_machine.current
+        bundle = None
+        if hasattr(current_state, "personality_bundle"):
+            bundle = current_state.personality_bundle
+
+        self._micro_behaviour.apply(final_pose, dt_s, bundle)
+
+        return final_pose
+
 
     # ------------------------------------------------------------------
     # Video / event loop

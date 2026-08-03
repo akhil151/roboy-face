@@ -212,19 +212,38 @@ class EmotionLayerCompositor:
 
     Usage:
         comp = EmotionLayerCompositor()
+        comp.set_neutral(neutral_pose)          # optional reference
         comp.set_layer("calm", calm_pose, 0.7)
         comp.set_layer("happy", happy_pose, 0.2)
-        comp.set_layer("surprised", surprised_pose, 0.1)
-        comp.blend_into(output_pose)  # weighted sum across all layers.
+        comp.update(16.0)                       # advance any internal timers
+        comp.blend_into(output_pose)            # weighted sum across all layers.
     """
 
     def __init__(self) -> None:
         self._layers: Dict[str, EmotionLayer] = {}
+        self._neutral_pose: Optional[EyePair] = None
         # Scratch buffers - never reallocate.
         self._scratch_a: Optional[EyePair] = None
         self._scratch_b: Optional[EyePair] = None
 
     # ------------------------------------------------------------------
+    def set_neutral(self, pose: EyePair) -> None:
+        """Store a reference neutral pose used to fill partial-weight blends.
+
+        Convenience method so callers can pass a neutral pose once and have
+        blend_into() automatically use it instead of passing it each call.
+        """
+        self._neutral_pose = pose
+
+    def update(self, dt_ms: float) -> None:  # noqa: ARG002
+        """Advance any internal layer timers by dt_ms.
+
+        Currently a no-op since layers hold static weights.  Provided as a
+        forward-compatible slot so code that calls update() each frame will
+        not need modification if per-layer animation is added later.
+        """
+        # Forward-compatible slot: no per-frame layer animation yet.
+
     def set_layer(
         self,
         name: str,

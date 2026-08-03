@@ -91,13 +91,20 @@ class MicroBehaviourSystem:
         mbs = MicroBehaviourSystem(engine.config)
         # ... each frame, after computing state pose:
         mbs.apply(final_pose, dt_s, current_personality_bundle)
+
+    No-arg construction is also supported for testing / standalone use:
+        mbs = MicroBehaviourSystem()
+        mbs.apply(pose, 16.0)   # dt can be ms (>1) or seconds (<= 1)
     """
 
     def __init__(
         self,
-        config: EngineConfig,
+        config: Optional[EngineConfig] = None,
         mb_cfg: Optional[MicroBehaviourConfig] = None,
     ) -> None:
+        if config is None:
+            from .config import EngineConfig as _EC
+            config = _EC()
         self._engine_cfg = config
         self._cfg = mb_cfg or MicroBehaviourConfig()
 
@@ -287,21 +294,33 @@ class MicroBehaviourSystem:
     def apply(
         self,
         pose: EyePair,
-        dt_s: float,
+        dt: float,
         personality_bundle: Optional[PersonalityBundle] = None,
     ) -> None:
         """Apply all 7 micro layers additively into the provided pose.
+
+        ``dt`` may be supplied in seconds (dt <= 1.0, production hot-path)
+        or in milliseconds (dt > 1.0, convenient for tests/standalone use).
 
         Call this once per frame AFTER the state pose has been written
         into ``pose``.  The function mutates ``pose`` in place and is
         guaranteed to never introduce parameter jumps.
         """
+        # Detect unit: production engine passes seconds; tests pass ms.
+        dt_s = dt / 1000.0 if dt > 1.0 else dt
         if personality_bundle is not None:
             # Smoothly swap personality if a new one was provided.
             self.set_personality(personality_bundle)
 
         self._elapsed_s += dt_s
         self._micro_elapsed_ms += dt_s * 1000.0
+
+        # Reset micro-motion channels: these belong exclusively to MBS.
+        # State layers never write micro_offset_*; resetting here prevents
+        # accumulation and matches the architectural "fresh each frame" contract.
+        for eye in (pose.left, pose.right):
+            eye.micro_offset_x = 0.0
+            eye.micro_offset_y = 0.0
 
         # Update state machines for pauses + settling.
         self._update_pause_machine(dt_s)
