@@ -68,13 +68,13 @@ class TimingConfig:
 
 @dataclass(frozen=True)
 class MicroMotionConfig:
-    amplitude: float = 2.0
-    breathe_amplitude: float = 1.0
-    sway_amplitude: float = 1.5
-    drift_amplitude: float = 1.2
-    breathe_period_seconds: float = 5.0
-    sway_period_seconds: float = 7.3
-    drift_period_seconds: float = 11.0
+    amplitude: float = 0.6
+    breathe_amplitude: float = 0.6
+    sway_amplitude: float = 0.25
+    drift_amplitude: float = 0.18
+    breathe_period_seconds: float = 5.4
+    sway_period_seconds: float = 9.0
+    drift_period_seconds: float = 15.0
     phase_offset: float = 0.0
 
 

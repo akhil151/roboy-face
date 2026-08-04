@@ -48,12 +48,12 @@ class ListeningAnimation(ExpressiveAnimation):
             warmth=self.direction.warmth,
             attention=self.direction.curiosity,
             calmness=self.direction.calmness,
-            amplitude=0.50,
+            amplitude=0.24,
             blink_tendency=0.32,
         )
 
     def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
-        target_radius = self._base_radius * 1.04
+        target_radius = self._base_radius * 1.01
         # Inward lean: left eye moves right (+2px), right eye moves left (-2px)
         pose.left.pos_x = self._left_cx + 2.0
         pose.right.pos_x = self._right_cx - 2.0
@@ -61,12 +61,12 @@ class ListeningAnimation(ExpressiveAnimation):
         for eye in (pose.left, pose.right):
             eye.pos_y = self._cy - 2.5
             eye.radius = target_radius
-            eye.scale_y = 1.04
-            eye.scale_x = 0.98
-            eye.lid_openness = 1.06
-            eye.upper_lid_curvature = -0.12
+            eye.scale_y = 1.01
+            eye.scale_x = 0.99
+            eye.lid_openness = 1.045
+            eye.upper_lid_curvature = -0.08
             eye.lower_lid_curvature = 0.04
-            eye.iris_scale = 0.95
+            eye.iris_scale = 0.97
 
     def entry_pose(self, t: float, pose: EyePair) -> None:
         super().entry_pose(t, pose)
@@ -75,8 +75,8 @@ class ListeningAnimation(ExpressiveAnimation):
 
     def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
         return {
-            "bounce": 0.1,
+            "bounce": 0.05,
             "pulse": 0.0,
-            "scan": 0.35,
+            "scan": 0.10,
             "blink_motion": 1.0,
         }

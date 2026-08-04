@@ -61,12 +61,12 @@ class SadAnimation(ExpressiveAnimation):
         for eye in (pose.left, pose.right):
             eye.pos_y = self._cy + 5.5
             eye.radius = target_radius
-            eye.scale_y = 0.90
-            eye.scale_x = 1.01
-            eye.lid_openness = 0.74
-            eye.upper_lid_curvature = 0.16
-            eye.lower_lid_curvature = 0.10
-            eye.iris_scale = 0.96
+            eye.scale_y = 0.96
+            eye.scale_x = 1.00
+            eye.lid_openness = 0.72
+            eye.upper_lid_curvature = 0.18
+            eye.lower_lid_curvature = 0.12
+            eye.iris_scale = 0.98
             eye.look_offset_y = 5.0
 
     def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:

@@ -49,7 +49,7 @@ class HappyAnimation(ExpressiveAnimation):
             warmth=self.direction.warmth,
             attention=self.direction.curiosity,
             calmness=self.direction.calmness,
-            amplitude=0.85,
+            amplitude=0.30,
             blink_tendency=0.75,
         )
 
@@ -70,23 +70,23 @@ class HappyAnimation(ExpressiveAnimation):
         )
 
     def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
-        target_radius = self._base_radius * 0.98
+        target_radius = self._base_radius * 0.995
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
             eye.pos_x = cx
-            eye.pos_y = self._cy + 1.5
+            eye.pos_y = self._cy + 0.8
             eye.radius = target_radius
-            eye.scale_y = 0.88
-            eye.scale_x = 1.05
-            eye.squash = 0.02
-            eye.upper_lid_curvature = 0.20
-            eye.lower_lid_curvature = -0.38
-            eye.lid_openness = 0.76
-            eye.iris_scale = 0.94
+            eye.scale_y = 0.985
+            eye.scale_x = 1.003
+            eye.squash = 0.003
+            eye.upper_lid_curvature = 0.05
+            eye.lower_lid_curvature = -0.31
+            eye.lid_openness = 0.935
+            eye.iris_scale = 0.99
 
     def entry_pose(self, t: float, pose: EyePair) -> None:
         super().entry_pose(t, pose)
-        # Apply gentle bounce impulse accent during enter
-        bounce_accent_helper(pose, 8.0, t * 350.0, amount=0.35)
+        # Apply gentle bounce impulse accent during enter (tiny)
+        bounce_accent_helper(pose, 8.0, t * 350.0, amount=0.14)
 
     def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:
         super().loop_pose(dt_ms, elapsed_ms, pose)
@@ -97,8 +97,8 @@ class HappyAnimation(ExpressiveAnimation):
 
     def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
         return {
-            "bounce": 0.20,
-            "pulse": 0.15,
+            "bounce": 0.04,
+            "pulse": 0.02,
             "scan": 0.0,
             "blink_motion": 1.0,
         }

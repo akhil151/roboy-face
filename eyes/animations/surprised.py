@@ -49,7 +49,7 @@ class SurprisedAnimation(ExpressiveAnimation):
             warmth=self.direction.warmth,
             attention=self.direction.curiosity,
             calmness=self.direction.calmness,
-            amplitude=0.95,
+            amplitude=0.75,
             blink_tendency=0.85,
         )
 
@@ -67,23 +67,23 @@ class SurprisedAnimation(ExpressiveAnimation):
         )
 
     def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
-        target_radius = self._base_radius * 1.04
+        target_radius = self._base_radius * 1.015
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
             eye.pos_x = cx
-            eye.pos_y = self._cy - 3.0
+            eye.pos_y = self._cy - 2.4
             eye.radius = target_radius
-            eye.scale_y = 1.05
-            eye.scale_x = 1.04
-            eye.stretch = 0.08
-            eye.lid_openness = 1.15
-            eye.upper_lid_curvature = -0.25
-            eye.lower_lid_curvature = 0.18
-            eye.iris_scale = 1.05
+            eye.scale_y = 1.015
+            eye.scale_x = 1.006
+            eye.stretch = 0.015
+            eye.lid_openness = 1.11
+            eye.upper_lid_curvature = -0.145
+            eye.lower_lid_curvature = 0.095
+            eye.iris_scale = 1.015
 
     def entry_pose(self, t: float, pose: EyePair) -> None:
         super().entry_pose(t, pose)
-        # Apply gentle expansion helper on enter
-        eye_expansion_helper(pose, amount=0.15, progress=t)
+        # Apply gentle expansion helper on enter (reduced to avoid eye dominance)
+        eye_expansion_helper(pose, amount=0.12, progress=t)
 
     def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
         # Minimal loop movement (held wide open freeze)

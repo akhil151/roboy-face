@@ -59,11 +59,11 @@ class SleepyAnimation(ExpressiveAnimation):
             eye.pos_x = cx
             eye.pos_y = self._cy + 3.5
             eye.radius = target_radius
-            eye.scale_y = 0.80
+            eye.scale_y = 0.92
             eye.lid_openness = 0.35
             eye.upper_lid_curvature = 0.28
             eye.blink_weight = 0.20
-            eye.iris_scale = 0.88
+            eye.iris_scale = 0.92
 
     def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:
         super().loop_pose(dt_ms, elapsed_ms, pose)

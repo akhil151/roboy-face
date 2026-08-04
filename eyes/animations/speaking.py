@@ -48,32 +48,32 @@ class SpeakingAnimation(ExpressiveAnimation):
             warmth=self.direction.warmth,
             attention=self.direction.curiosity,
             calmness=self.direction.calmness,
-            amplitude=0.68,
+            amplitude=0.22,
             blink_tendency=0.50,
         )
 
     def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
-        target_radius = self._base_radius * 1.02
+        target_radius = self._base_radius * 1.00
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
             eye.pos_x = cx
             eye.pos_y = self._cy - 1.5
             eye.radius = target_radius
-            eye.scale_y = 1.03
-            eye.scale_x = 0.99
-            eye.lid_openness = 1.04
+            eye.scale_y = 1.00
+            eye.scale_x = 1.00
+            eye.lid_openness = 1.028
             eye.upper_lid_curvature = -0.04
             eye.lower_lid_curvature = 0.02
             eye.iris_scale = 1.0
 
     def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:
         super().loop_pose(dt_ms, elapsed_ms, pose)
-        # Apply speech-synchronized breathing pulse helper
-        breathing_pulse_helper(pose, dt_ms, elapsed_ms, amount=0.8)
+        # Apply very subtle speech-synchronized breathing pulse (eyes barely react)
+        breathing_pulse_helper(pose, dt_ms, elapsed_ms, amount=0.18)
 
     def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
         return {
-            "bounce": 0.45,
-            "pulse": 0.60,
-            "scan": 0.10,
+            "bounce": 0.06,
+            "pulse": 0.08,
+            "scan": 0.01,
             "blink_motion": 1.0,
         }

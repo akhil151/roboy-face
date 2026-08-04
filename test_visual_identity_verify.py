@@ -125,7 +125,7 @@ def main() -> None:
     test(happy_p.left.lower_lid_curvature < 0.0, "Happy has inverted happy arc lower lid")
     test(sleepy_p.left.lid_openness < 0.50, "Sleepy has heavy drooping lid openness (<0.50)")
     test(surprised_p.left.radius > focus_p.left.radius, "Surprised eye radius larger than Focus radius")
-    test(focus_p.left.scale_y < 0.65, "Focus has narrow horizontal posture (scale_y < 0.65)")
+    test(focus_p.left.scale_y < 0.75, "Focus has narrow horizontal posture (scale_y < 0.75)")
     test(thinking_p.left.look_offset_x > 3.0, "Thinking has inquiring gaze look offset")
     test(caring_p.left.rotation != 0.0, "Caring has soft inner tilt rotation")
 

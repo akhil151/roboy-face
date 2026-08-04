@@ -48,7 +48,7 @@ class ThinkingAnimation(ExpressiveAnimation):
             warmth=self.direction.warmth,
             attention=self.direction.curiosity,
             calmness=self.direction.calmness,
-            amplitude=0.42,
+            amplitude=0.20,
             blink_tendency=0.25,
         )
 
@@ -58,11 +58,11 @@ class ThinkingAnimation(ExpressiveAnimation):
             eye.pos_x = cx
             eye.pos_y = self._cy
             eye.radius = target_radius
-            eye.scale_y = 0.94
-            eye.scale_x = 1.02
+            eye.scale_y = 0.98
+            eye.scale_x = 1.00
             eye.rotation = 0.0
             eye.lid_openness = 0.82
-            eye.upper_lid_curvature = 0.10
+            eye.upper_lid_curvature = 0.08
             eye.look_offset_x = 0.0
             eye.look_offset_y = 0.0
 
@@ -138,6 +138,6 @@ class ThinkingAnimation(ExpressiveAnimation):
         return {
             "bounce": 0.0,
             "pulse": 0.0,
-            "scan": 0.40,
+            "scan": 0.0,
             "blink_motion": 0.7,
         }

@@ -57,22 +57,24 @@ class CaringAnimation(ExpressiveAnimation):
         pose.left.pos_x = self._left_cx + 4.0
         pose.left.pos_y = self._cy + 1.2
         pose.left.radius = target_radius
-        pose.left.scale_y = 1.02
+        pose.left.scale_y = 1.00
         pose.left.scale_x = 0.99
         pose.left.rotation = 0.07
         pose.left.upper_lid_curvature = -0.08
         pose.left.lower_lid_curvature = -0.15
         pose.left.lid_openness = 0.92
+        pose.left.iris_scale = 0.98
 
         pose.right.pos_x = self._right_cx - 4.0
         pose.right.pos_y = self._cy + 1.2
         pose.right.radius = target_radius
-        pose.right.scale_y = 1.02
+        pose.right.scale_y = 1.00
         pose.right.scale_x = 0.99
         pose.right.rotation = -0.07
         pose.right.upper_lid_curvature = -0.08
         pose.right.lower_lid_curvature = -0.15
         pose.right.lid_openness = 0.92
+        pose.right.iris_scale = 0.98
 
     def entry_pose(self, t: float, pose: EyePair) -> None:
         super().entry_pose(t, pose)

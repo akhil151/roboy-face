@@ -49,6 +49,49 @@ class MouthRenderer:
         dy = py - cy
         return (cx + dx * cos_a - dy * sin_a, cy + dx * sin_a + dy * cos_a)
 
+    def _append_capsule(
+        self,
+        poly: List[Tuple[int, int]],
+        cx: float,
+        cy: float,
+        half_w: float,
+        half_h: float,
+        rot: float,
+        steps: int = 20,
+    ) -> None:
+        """Append a rounded capsule polygon, oriented by width/height."""
+        if half_h >= half_w:
+            body_half = max(0.0, half_h - half_w)
+            radius = half_w
+            for i in range(steps + 1):
+                a = math.pi + (math.pi * i / steps)
+                x = cx + math.cos(a) * radius
+                y = cy - body_half + math.sin(a) * radius
+                rx, ry = self._rotate_point(x, y, cx, cy, rot)
+                poly.append((int(round(rx)), int(round(ry))))
+            for i in range(steps + 1):
+                a = math.pi * i / steps
+                x = cx + math.cos(a) * radius
+                y = cy + body_half + math.sin(a) * radius
+                rx, ry = self._rotate_point(x, y, cx, cy, rot)
+                poly.append((int(round(rx)), int(round(ry))))
+            return
+
+        body_half = max(0.0, half_w - half_h)
+        radius = half_h
+        for i in range(steps + 1):
+            a = -math.pi * 0.5 + (math.pi * i / steps)
+            x = cx + body_half + math.cos(a) * radius
+            y = cy + math.sin(a) * radius
+            rx, ry = self._rotate_point(x, y, cx, cy, rot)
+            poly.append((int(round(rx)), int(round(ry))))
+        for i in range(steps + 1):
+            a = math.pi * 0.5 + (math.pi * i / steps)
+            x = cx - body_half + math.cos(a) * radius
+            y = cy + math.sin(a) * radius
+            rx, ry = self._rotate_point(x, y, cx, cy, rot)
+            poly.append((int(round(rx)), int(round(ry))))
+
     def draw_mouth(self, surface: pygame.Surface, p: MouthParams) -> None:
         """Render procedural solid white mouth onto surface with resolution scaling."""
         opacity = max(0.0, min(1.0, p.opacity))
@@ -80,134 +123,99 @@ class MouthRenderer:
         opening = max(0.0, min(1.0, p.opening))
         roundness = max(0.1, min(1.0, p.corner_roundness))
 
-        smile_bias = p.smile_amount * eff_h * 0.65
-        up_curve = p.upper_curvature * eff_h * 0.60 + smile_bias
-        low_curve = p.lower_curvature * eff_h * 0.60 + smile_bias
+        smile_curve = p.smile_amount * eff_h * 0.78
+        upper_body = p.upper_curvature * eff_h * 0.26
+        lower_body = p.lower_curvature * eff_h * 0.38
 
         outer = self._outer_poly
         outer.clear()
+        steps = 36
 
-        steps = 32
-
-        if opening <= 0.02:
-            # -------------------------------------------------------------------
-            # Solid White Silhouette (Happy, Caring, Sad, Calm, Listening, etc.)
-            # -------------------------------------------------------------------
-            # Upper contour curve (Left -> Right)
-            for i in range(steps + 1):
-                t = i / steps  # 0.0 to 1.0
-                u = (t - 0.5) * 2.0  # -1.0 to 1.0
-                x = cx + u * half_w
-                arch = (1.0 - u * u)
-                y_upper = cy - (thickness * 0.5) - (up_curve * arch)
-                rx, ry = self._rotate_point(x, y_upper, cx, cy, rot)
-                outer.append((int(round(rx)), int(round(ry))))
-
-            # Right rounded end cap
-            cap_steps = 10
-            for i in range(1, cap_steps):
-                ca = (i / cap_steps) * math.pi
-                cap_r = (thickness * 0.5) * roundness
-                cap_x = cx + half_w + math.sin(ca) * cap_r
-                cap_y = cy - (up_curve * 0.1) + math.cos(ca) * (thickness * 0.5)
-                rx, ry = self._rotate_point(cap_x, cap_y, cx, cy, rot)
-                outer.append((int(round(rx)), int(round(ry))))
-
-            # Lower contour curve (Right -> Left)
-            for i in range(steps, -1, -1):
-                t = i / steps
-                u = (t - 0.5) * 2.0
-                x = cx + u * half_w
-                arch = (1.0 - u * u)
-                # Lower contour includes smile/crescent arch depth
-                y_lower = cy + (thickness * 0.5) + (half_h * arch * 0.8) - (low_curve * arch)
-                rx, ry = self._rotate_point(x, y_lower, cx, cy, rot)
-                outer.append((int(round(rx)), int(round(ry))))
-
-            # Left rounded end cap
-            for i in range(1, cap_steps):
-                ca = (i / cap_steps) * math.pi
-                cap_r = (thickness * 0.5) * roundness
-                cap_x = cx - half_w - math.sin(ca) * cap_r
-                cap_y = cy - (up_curve * 0.1) - math.cos(ca) * (thickness * 0.5)
-                rx, ry = self._rotate_point(cap_x, cap_y, cx, cy, rot)
-                outer.append((int(round(rx)), int(round(ry))))
-
-            # Render solid white polygon
-            if len(outer) >= 3:
-                try:
-                    pygame.gfxdraw.aapolygon(surface, outer, color)
-                    pygame.gfxdraw.filled_polygon(surface, outer, color)
-                except (pygame.error, OverflowError):
-                    pygame.draw.polygon(surface, color, outer)
-
+        if eff_h > eff_w * 1.20:
+            self._append_capsule(
+                outer,
+                cx,
+                cy,
+                half_w=max(half_w, thickness * 0.42),
+                half_h=half_h,
+                rot=rot,
+                steps=20,
+            )
         else:
-            # -------------------------------------------------------------------
-            # Open Cavity Mouth (Surprised O-shape with dark inner mask)
-            # -------------------------------------------------------------------
-            # Outer Ring (Left -> Right -> Left)
+            cap_steps = 12
             for i in range(steps + 1):
                 t = i / steps
                 u = (t - 0.5) * 2.0
-                x = cx + u * half_w
                 arch = (1.0 - u * u)
-                y_upper = cy - half_h * (1.0 - opening * 0.1)
+                taper = 0.48 + 0.52 * math.pow(arch, 0.72)
+                body = thickness * taper
+                x = cx + u * half_w
+                y_upper = cy + (smile_curve * arch) - (body * 0.5) - (upper_body * arch)
                 rx, ry = self._rotate_point(x, y_upper, cx, cy, rot)
                 outer.append((int(round(rx)), int(round(ry))))
 
-            # Right cap
-            cap_steps = 8
+            cap_r = max(3.0, thickness * 0.5 * roundness)
             for i in range(1, cap_steps):
-                ca = (i / cap_steps) * math.pi
-                cap_x = cx + half_w + math.sin(ca) * half_h * 0.5
-                cap_y = cy + math.cos(ca) * half_h * 0.5
+                ca = -math.pi * 0.5 + (math.pi * i / cap_steps)
+                cap_x = cx + half_w + math.cos(ca) * cap_r
+                cap_y = cy + math.sin(ca) * cap_r
                 rx, ry = self._rotate_point(cap_x, cap_y, cx, cy, rot)
                 outer.append((int(round(rx)), int(round(ry))))
 
             for i in range(steps, -1, -1):
                 t = i / steps
                 u = (t - 0.5) * 2.0
+                arch = (1.0 - u * u)
+                taper = 0.48 + 0.52 * math.pow(arch, 0.72)
+                body = thickness * taper
                 x = cx + u * half_w
-                y_lower = cy + half_h * (1.0 + opening * 0.2)
+                y_lower = cy + (smile_curve * arch) + (body * 0.5) + (lower_body * arch)
                 rx, ry = self._rotate_point(x, y_lower, cx, cy, rot)
                 outer.append((int(round(rx)), int(round(ry))))
 
             for i in range(1, cap_steps):
-                ca = (i / cap_steps) * math.pi
-                cap_x = cx - half_w - math.sin(ca) * half_h * 0.5
-                cap_y = cy - math.cos(ca) * half_h * 0.5
+                ca = math.pi * 0.5 + (math.pi * i / cap_steps)
+                cap_x = cx - half_w + math.cos(ca) * cap_r
+                cap_y = cy + math.sin(ca) * cap_r
                 rx, ry = self._rotate_point(cap_x, cap_y, cx, cy, rot)
                 outer.append((int(round(rx)), int(round(ry))))
 
-            if len(outer) >= 3:
-                try:
-                    pygame.gfxdraw.aapolygon(surface, outer, color)
-                    pygame.gfxdraw.filled_polygon(surface, outer, color)
-                except (pygame.error, OverflowError):
-                    pygame.draw.polygon(surface, color, outer)
+        if len(outer) >= 3:
+            try:
+                pygame.gfxdraw.aapolygon(surface, outer, color)
+                pygame.gfxdraw.filled_polygon(surface, outer, color)
+            except (pygame.error, OverflowError):
+                pygame.draw.polygon(surface, color, outer)
 
-            # Inner Cavity Mask (Dark Fill)
+        if opening > 0.08 and eff_h <= eff_w * 1.20:
             inner = self._inner_poly
             inner.clear()
 
-            cavity_w = max(4.0, half_w - thickness * 0.8)
-            cavity_h = max(4.0, half_h - thickness * 0.8)
-            cav_steps = 20
+            inner_thickness = max(3.0, thickness * (0.48 - opening * 0.18))
+            inner_half_w = max(6.0, half_w - thickness * 0.95)
+            inner_upper = upper_body * 0.35
+            inner_lower = lower_body * 0.40
 
-            for i in range(cav_steps + 1):
-                t = i / cav_steps
+            for i in range(steps + 1):
+                t = i / steps
                 u = (t - 0.5) * 2.0
-                x = cx + u * cavity_w
-                y = cy - cavity_h
-                rx, ry = self._rotate_point(x, y, cx, cy, rot)
+                arch = (1.0 - u * u)
+                taper = 0.38 + 0.62 * math.pow(arch, 0.78)
+                body = inner_thickness * taper
+                x = cx + u * inner_half_w
+                y_upper = cy + (smile_curve * arch) - (body * 0.5) - (inner_upper * arch)
+                rx, ry = self._rotate_point(x, y_upper, cx, cy, rot)
                 inner.append((int(round(rx)), int(round(ry))))
 
-            for i in range(cav_steps, -1, -1):
-                t = i / cav_steps
+            for i in range(steps, -1, -1):
+                t = i / steps
                 u = (t - 0.5) * 2.0
-                x = cx + u * cavity_w
-                y = cy + cavity_h
-                rx, ry = self._rotate_point(x, y, cx, cy, rot)
+                arch = (1.0 - u * u)
+                taper = 0.38 + 0.62 * math.pow(arch, 0.78)
+                body = inner_thickness * taper
+                x = cx + u * inner_half_w
+                y_lower = cy + (smile_curve * arch) + (body * 0.5) + (inner_lower * arch)
+                rx, ry = self._rotate_point(x, y_lower, cx, cy, rot)
                 inner.append((int(round(rx)), int(round(ry))))
 
             if len(inner) >= 3:
@@ -216,4 +224,3 @@ class MouthRenderer:
                     pygame.gfxdraw.filled_polygon(surface, inner, self._bg_color)
                 except (pygame.error, OverflowError):
                     pygame.draw.polygon(surface, self._bg_color, inner)
-

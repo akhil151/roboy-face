@@ -18,12 +18,20 @@ from .spring import Spring2D, SpringConfig
 @dataclass
 class LookController:
     _config: EngineConfig
-    _look_spring: Spring2D = field(default_factory=lambda: Spring2D(SpringConfig.medium(), (0.5, 0.5)))
+    _look_spring: Spring2D = field(default_factory=lambda: Spring2D(SpringConfig.fast(), (0.5, 0.5)))
     _target_norm: Tuple[float, float] = (0.5, 0.5)
 
     def look_at(self, nx: float, ny: float) -> None:
         nx = max(0.0, min(1.0, nx))
         ny = max(0.0, min(1.0, ny))
+        cx, cy = self._look_spring.value
+        dist = max(abs(nx - cx), abs(ny - cy))
+        if dist > 0.28:
+            self._look_spring.set_config(SpringConfig.snappy())
+        elif dist > 0.12:
+            self._look_spring.set_config(SpringConfig.fast())
+        else:
+            self._look_spring.set_config(SpringConfig.medium())
         self._target_norm = (nx, ny)
         self._look_spring.set_target(nx, ny)
 
@@ -31,6 +39,7 @@ class LookController:
         self._look_spring.set_config(config)
 
     def reset(self) -> None:
+        self._look_spring.set_config(SpringConfig.fast())
         self._look_spring.set_value_immediate(0.5, 0.5)
         self._look_spring.set_target(0.5, 0.5)
         self._target_norm = (0.5, 0.5)
@@ -47,6 +56,11 @@ class LookController:
         return (dx, dy)
 
     def update(self, dt_seconds: float) -> None:
+        tx, ty = self._target_norm
+        cx, cy = self._look_spring.value
+        dist = max(abs(tx - cx), abs(ty - cy))
+        if dist < 0.05:
+            self._look_spring.set_config(SpringConfig.fast())
         self._look_spring.update(dt_seconds)
 
     def at_rest(self) -> bool:

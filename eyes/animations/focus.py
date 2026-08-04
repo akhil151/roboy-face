@@ -48,7 +48,7 @@ class FocusAnimation(ExpressiveAnimation):
             warmth=self.direction.warmth,
             attention=self.direction.curiosity,
             calmness=self.direction.calmness,
-            amplitude=0.48,
+            amplitude=0.12,
             blink_tendency=0.22,
         )
 
@@ -58,12 +58,12 @@ class FocusAnimation(ExpressiveAnimation):
             eye.pos_x = cx
             eye.pos_y = self._cy - 1.0
             eye.radius = target_radius
-            eye.scale_y = 0.62
-            eye.scale_x = 1.08
-            eye.squash = 0.10
+            eye.scale_y = 0.60
+            eye.scale_x = 1.04
+            eye.squash = 0.06
             eye.upper_lid_curvature = -0.22
             eye.lower_lid_curvature = 0.08
-            eye.lid_openness = 0.55
+            eye.lid_openness = 0.58
             eye.iris_scale = 1.02
 
     def entry_pose(self, t: float, pose: EyePair) -> None:
@@ -75,7 +75,7 @@ class FocusAnimation(ExpressiveAnimation):
     def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:
         super().loop_pose(dt_ms, elapsed_ms, pose)
         for eye in (pose.left, pose.right):
-            eye.scale_y = 0.62
-            eye.squash = 0.10
-            eye.lid_openness = 0.55
+            eye.scale_y = 0.60
+            eye.squash = 0.06
+            eye.lid_openness = 0.58
             eye.upper_lid_curvature = -0.22

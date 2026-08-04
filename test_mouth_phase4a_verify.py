@@ -25,6 +25,8 @@ from face.mouth.mouth_shapes import MouthParams, get_mouth_preset, MOUTH_PRESETS
 from face.mouth.mouth_renderer import MouthRenderer
 from face.mouth.mouth_animation import MouthAnimationController
 from face import FaceEngine, VALID_STATES
+from eyes.engine.config import EngineConfig
+from eyes.engine.look_controller import LookController
 
 
 def run_tests() -> bool:
@@ -56,12 +58,13 @@ def run_tests() -> bool:
     speaking_p = get_mouth_preset("speaking")
     calm_p = get_mouth_preset("calm")
 
-    assert happy_p.opening == 0.0, "Happy mouth must be predominantly solid white shape (opening=0)!"
-    assert caring_p.opening == 0.0, "Caring mouth must be predominantly solid white shape (opening=0)!"
-    assert sad_p.opening == 0.0, "Sad mouth must be solid white shape (opening=0)!"
-    assert surprised_p.opening > 0.5, "Surprised mouth must have open inner cavity (opening > 0.5)!"
-    assert speaking_p.width == calm_p.width and speaking_p.height == calm_p.height, "Speaking must render neutral calm placeholder shape!"
-    print("  [OK] Silhouette rules verified (Happy/Caring solid white, Surprised O-mask, Speaking neutral).")
+    assert calm_p.opacity == 0.0, "Calm should render with no mouth at rest!"
+    assert happy_p.opening == 0.0, "Happy mouth must be a solid white smile glyph!"
+    assert caring_p.opening == 0.0, "Caring mouth must be a solid white smile glyph!"
+    assert sad_p.opening == 0.0 and sad_p.smile_amount < -0.5, "Sad mouth must be a readable solid frown!"
+    assert surprised_p.height > surprised_p.width * 1.8 and surprised_p.opening == 0.0, "Surprised must read as a vertical display capsule, not an O-mouth!"
+    assert speaking_p.width < calm_p.width and speaking_p.opacity > 0.0, "Speaking should use a small placeholder mouth glyph distinct from Calm."
+    print("  [OK] Silhouette rules verified (Calm hidden, Happy/Caring solid, Sad frown, Surprised capsule, Speaking placeholder).")
 
     # 3. Renderer Resolution Scaling across multiple surface sizes
     print("\n--- T3: Multi-Resolution Surface Rendering ---")
@@ -105,9 +108,24 @@ def run_tests() -> bool:
     p1 = controller.step(16.6).copy()
     p2 = controller.step(200.0).copy()
     
-    motion_detected = (abs(p1.offset_x - p2.offset_x) > 0.01) or (abs(p1.rotation - p2.rotation) > 0.001)
+    motion_detected = (
+        abs(p1.offset_x - p2.offset_x) > 0.01
+        or abs(p1.rotation - p2.rotation) > 0.001
+        or abs(p1.smile_amount - p2.smile_amount) > 0.001
+    )
     assert motion_detected, "Thinking state must exhibit dynamic corner motion over time!"
     print("  [OK] Thinking state exhibits smooth animated corner motion over time.")
+
+    # 6. Look tracking responsiveness
+    print("\n--- T6: Look Tracking Responsiveness ---")
+    look = LookController(EngineConfig())
+    look.look_at(1.0, 0.0)
+    for _ in range(12):
+        look.update(1.0 / 60.0)
+
+    lx, ly = look.current_normalized
+    assert lx > 0.88 and ly < 0.12, f"Look tracking should respond quickly without lag, got ({lx:.3f}, {ly:.3f})"
+    print("  [OK] Look tracking converges quickly while remaining smooth.")
 
     print("\n======================================================================")
     print("ALL PHASE 4A PREMIUM MOUTH DESIGN VERIFICATION TESTS PASSED!")

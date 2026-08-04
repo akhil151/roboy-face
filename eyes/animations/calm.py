@@ -45,9 +45,9 @@ class CalmAnimation(ExpressiveAnimation):
         return PersonalityProfile(
             energy=self.direction.energy,
             warmth=self.direction.warmth,
-            attention=0.30,
+            attention=0.18,
             calmness=self.direction.calmness,
-            amplitude=0.32,
+            amplitude=0.14,
             blink_tendency=0.50,
         )
 
@@ -68,6 +68,6 @@ class CalmAnimation(ExpressiveAnimation):
         return {
             "bounce": 0.0,
             "pulse": 0.0,
-            "scan": 0.1,
+            "scan": 0.02,
             "blink_motion": 1.0,
         }
