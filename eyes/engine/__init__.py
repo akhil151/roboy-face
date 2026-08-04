@@ -31,6 +31,7 @@ from . import motion_curves
 from . import personality
 from . import micro_behaviours
 from . import emotion_blending
+from . import choreography
 
 from .motion_primitives import (
     BreathingConfig,
@@ -113,6 +114,34 @@ from .emotion_blending import (
     clamp_duration,
     suggest_blend_duration,
 )
+from .choreography import (
+    StageType,
+    StageConfig,
+    AnimationDirection,
+    anticipation,
+    overshoot,
+    follow_through,
+    hold,
+    settle,
+    attention_gain_helper,
+    attention_release_helper,
+    emotional_settle_helper,
+    natural_pause_helper,
+    eye_compression_helper,
+    eye_expansion_helper,
+    look_scan_helper,
+    look_return_helper,
+    soft_blink_helper,
+    fast_blink_helper,
+    double_blink_helper,
+    curious_tilt_helper,
+    breathing_pulse_helper,
+    bounce_accent_helper,
+    focus_lock_helper,
+    focus_release_helper,
+    ChoreographyStep,
+    ChoreographySequence,
+)
 
 __all__ = [
     # Core Phase 1
@@ -147,6 +176,7 @@ __all__ = [
     "personality",
     "micro_behaviours",
     "emotion_blending",
+    "choreography",
     # Motion primitives - configs
     "BreathingConfig",
     "BounceConfig",
@@ -225,4 +255,31 @@ __all__ = [
     "EmotionLayerCompositor",
     "clamp_duration",
     "suggest_blend_duration",
+    # Animation Direction & Choreography
+    "StageType",
+    "StageConfig",
+    "AnimationDirection",
+    "anticipation",
+    "overshoot",
+    "follow_through",
+    "hold",
+    "settle",
+    "attention_gain_helper",
+    "attention_release_helper",
+    "emotional_settle_helper",
+    "natural_pause_helper",
+    "eye_compression_helper",
+    "eye_expansion_helper",
+    "look_scan_helper",
+    "look_return_helper",
+    "soft_blink_helper",
+    "fast_blink_helper",
+    "double_blink_helper",
+    "curious_tilt_helper",
+    "breathing_pulse_helper",
+    "bounce_accent_helper",
+    "focus_lock_helper",
+    "focus_release_helper",
+    "ChoreographyStep",
+    "ChoreographySequence",
 ]

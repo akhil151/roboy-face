@@ -1,9 +1,9 @@
 """
 Speaking animation - active verbal output mode.
 
-Eyes open, rhythmic jaw/cheek simulation via vertical micro-bounce,
-slight horizontal stretch mimicking speech articulation.
-Communicates that the robot is actively talking.
+Feeling: Communicating
+Signature Motion: Speech Pulse
+Director Note: Speech should feel alive without distracting the child.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from .expressive import ExpressiveAnimation
 from ..engine.personality import PersonalityProfile, PersonalityBundle
+from ..engine.choreography import AnimationDirection, breathing_pulse_helper
 
 if TYPE_CHECKING:
     from ..engine.eye_pair import EyePair
@@ -20,23 +21,59 @@ if TYPE_CHECKING:
 class SpeakingAnimation(ExpressiveAnimation):
     name = "speaking"
 
+    def __init__(self, config: object) -> None:
+        self.direction = AnimationDirection(
+            enter_duration=250.0,
+            exit_duration=250.0,
+            hold_duration=50.0,
+            breathing_strength=1.2,
+            bounce_strength=0.45,
+            blink_style="normal",
+            look_style="centered",
+            emotion_goal="Active verbal communication",
+            viewer_response="Child engages with spoken guidance without distraction",
+            attention_style="expressive_articulation",
+            interaction_style="communicating",
+            signature_motion="speech_pulse",
+            energy=0.78,
+            warmth=0.70,
+            curiosity=0.65,
+            calmness=0.55,
+        )
+        super().__init__(config)  # type: ignore[arg-type]
+
     def configure_personality(self) -> PersonalityProfile:
-        return PersonalityProfile.speaking()
+        return PersonalityProfile(
+            energy=self.direction.energy,
+            warmth=self.direction.warmth,
+            attention=self.direction.curiosity,
+            calmness=self.direction.calmness,
+            amplitude=0.68,
+            blink_tendency=0.50,
+        )
 
     def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
         target_radius = self._base_radius * 1.02
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
             eye.pos_x = cx
-            eye.pos_y = self._cy - 2.0
+            eye.pos_y = self._cy - 1.5
             eye.radius = target_radius
             eye.scale_y = 1.03
-            eye.lid_openness = 1.05
+            eye.scale_x = 0.99
+            eye.lid_openness = 1.04
             eye.upper_lid_curvature = -0.04
+            eye.lower_lid_curvature = 0.02
+            eye.iris_scale = 1.0
+
+    def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:
+        super().loop_pose(dt_ms, elapsed_ms, pose)
+        # Apply speech-synchronized breathing pulse helper
+        breathing_pulse_helper(pose, dt_ms, elapsed_ms, amount=0.8)
 
     def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
         return {
-            "bounce": 0.5,
-            "pulse": 0.4,
-            "scan": 0.0,
+            "bounce": 0.45,
+            "pulse": 0.60,
+            "scan": 0.10,
             "blink_motion": 1.0,
         }

@@ -384,6 +384,71 @@ def suggest_blend_duration(
 
 
 # ---------------------------------------------------------------------------
+# Emotion Transition Policy & Emotional Memory
+# ---------------------------------------------------------------------------
+
+
+class EmotionTransitionPolicy:
+    """Defines preferred transition paths and emotional memory decay between states.
+
+    Prevents abrupt emotional jumps by providing:
+      * Adjacency check & optimal transition durations.
+      * Intermediate routing for distant emotional states (e.g. sad -> calm via caring).
+      * Emotional memory residual calculation for smooth cross-state decay.
+    """
+
+    # Preferred direct adjacent transitions and custom blend durations (ms).
+    PREFERRED_TRANSITIONS: Dict[Tuple[str, str], float] = {
+        ("calm", "listening"): 300.0,
+        ("listening", "thinking"): 350.0,
+        ("thinking", "speaking"): 280.0,
+        ("speaking", "happy"): 320.0,
+        ("happy", "caring"): 400.0,
+        ("caring", "calm"): 420.0,
+        ("surprised", "happy"): 300.0,
+        ("focus", "speaking"): 250.0,
+        ("calm", "focus"): 280.0,
+        ("listening", "focus"): 260.0,
+        ("happy", "calm"): 380.0,
+        ("surprised", "calm"): 350.0,
+        ("sad", "caring"): 450.0,
+        ("sleepy", "calm"): 500.0,
+    }
+
+    # Recommended intermediate routing for non-adjacent transitions.
+    ROUTED_TRANSITIONS: Dict[Tuple[str, str], list[str]] = {
+        ("sad", "calm"): ["caring"],
+        ("sad", "happy"): ["caring", "calm"],
+        ("sleepy", "surprised"): ["calm", "listening"],
+        ("sleepy", "speaking"): ["calm", "listening"],
+    }
+
+    @classmethod
+    def get_transition_duration(cls, from_state: str, to_state: str) -> float:
+        """Return the optimal transition duration in ms for a state pair."""
+        key = (from_state.lower(), to_state.lower())
+        if key in cls.PREFERRED_TRANSITIONS:
+            return cls.PREFERRED_TRANSITIONS[key]
+        return DEFAULT_BLEND_MS
+
+    @classmethod
+    def get_intermediate_path(cls, from_state: str, to_state: str) -> list[str]:
+        """Return intermediate states to route through to prevent abrupt jumps."""
+        key = (from_state.lower(), to_state.lower())
+        return cls.ROUTED_TRANSITIONS.get(key, [])
+
+    @classmethod
+    def calculate_emotional_memory_weight(cls, blend_progress: float, residual_amount: float = 0.15) -> float:
+        """Calculate the decaying emotional memory residual of the outgoing state.
+
+        t in [0, 1]. At entry start, residual is residual_amount (~15%) and decays
+        smoothly to 0 as entry completes, preserving emotional continuity.
+        """
+        p = clamp01(blend_progress)
+        return (1.0 - ease_out_cubic(p)) * residual_amount
+
+
+# ---------------------------------------------------------------------------
 # Module exports
 # ---------------------------------------------------------------------------
 
@@ -394,6 +459,8 @@ __all__ = [
     "EmotionLayer",
     "CinematicBlender",
     "EmotionLayerCompositor",
+    "EmotionTransitionPolicy",
     "clamp_duration",
     "suggest_blend_duration",
 ]
+

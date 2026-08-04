@@ -1,9 +1,9 @@
 """
 Focus animation - intense concentration mode.
 
-Eyes narrowed, lids tensed, iris slightly constricted,
-very still (reduced micro motion), sharp tight geometry.
-Communicates reading, analysis, sharp focus.
+Feeling: Locked attention
+Signature Motion: Attention Lock
+Director Note: The child should feel the robot is looking directly at them.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from .expressive import ExpressiveAnimation
 from ..engine.personality import PersonalityProfile, PersonalityBundle
+from ..engine.choreography import AnimationDirection, focus_lock_helper, emotional_settle_helper
 
 if TYPE_CHECKING:
     from ..engine.eye_pair import EyePair
@@ -20,27 +21,61 @@ if TYPE_CHECKING:
 class FocusAnimation(ExpressiveAnimation):
     name = "focus"
 
+    def __init__(self, config: object) -> None:
+        self.direction = AnimationDirection(
+            enter_duration=220.0,
+            exit_duration=250.0,
+            hold_duration=150.0,
+            breathing_strength=0.5,
+            bounce_strength=0.0,
+            blink_style="fast",
+            look_style="lock",
+            emotion_goal="Establish locked direct eye contact",
+            viewer_response="Child feels the robot is looking directly at them",
+            attention_style="predictive_tracking",
+            interaction_style="concentrated",
+            signature_motion="attention_lock",
+            energy=0.55,
+            warmth=0.32,
+            curiosity=0.98,
+            calmness=0.78,
+        )
+        super().__init__(config)  # type: ignore[arg-type]
+
     def configure_personality(self) -> PersonalityProfile:
-        return PersonalityProfile.focused()
+        return PersonalityProfile(
+            energy=self.direction.energy,
+            warmth=self.direction.warmth,
+            attention=self.direction.curiosity,
+            calmness=self.direction.calmness,
+            amplitude=0.48,
+            blink_tendency=0.22,
+        )
 
     def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
-        target_radius = self._base_radius * 0.95
+        target_radius = self._base_radius * 0.94
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
             eye.pos_x = cx
             eye.pos_y = self._cy - 1.5
             eye.radius = target_radius
-            eye.scale_y = 0.85
+            eye.scale_y = 0.84
             eye.scale_x = 1.03
-            eye.squash = 0.07
-            eye.upper_lid_curvature = 0.05
-            eye.lower_lid_curvature = 0.09
-            eye.lid_openness = 0.68
-            eye.iris_scale = 1.06
+            eye.squash = 0.08
+            eye.upper_lid_curvature = 0.06
+            eye.lower_lid_curvature = 0.10
+            eye.lid_openness = 0.66
+            eye.iris_scale = 1.08
+
+    def entry_pose(self, t: float, pose: EyePair) -> None:
+        super().entry_pose(t, pose)
+        # Apply focus lock and spring settle helper on enter
+        focus_lock_helper(pose, focus_amount=t)
+        emotional_settle_helper(pose, t)
 
     def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
         return {
             "bounce": 0.0,
             "pulse": 0.0,
-            "scan": 0.3,
+            "scan": 0.30,
             "blink_motion": 0.6,
         }
