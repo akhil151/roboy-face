@@ -56,15 +56,15 @@ class FocusAnimation(ExpressiveAnimation):
         target_radius = self._base_radius * 0.94
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
             eye.pos_x = cx
-            eye.pos_y = self._cy - 1.5
+            eye.pos_y = self._cy - 1.0
             eye.radius = target_radius
-            eye.scale_y = 0.84
-            eye.scale_x = 1.03
-            eye.squash = 0.08
-            eye.upper_lid_curvature = 0.06
-            eye.lower_lid_curvature = 0.10
-            eye.lid_openness = 0.66
-            eye.iris_scale = 1.08
+            eye.scale_y = 0.62
+            eye.scale_x = 1.08
+            eye.squash = 0.10
+            eye.upper_lid_curvature = -0.22
+            eye.lower_lid_curvature = 0.08
+            eye.lid_openness = 0.55
+            eye.iris_scale = 1.02
 
     def entry_pose(self, t: float, pose: EyePair) -> None:
         super().entry_pose(t, pose)
@@ -72,10 +72,10 @@ class FocusAnimation(ExpressiveAnimation):
         focus_lock_helper(pose, focus_amount=t)
         emotional_settle_helper(pose, t)
 
-    def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
-        return {
-            "bounce": 0.0,
-            "pulse": 0.0,
-            "scan": 0.30,
-            "blink_motion": 0.6,
-        }
+    def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:
+        super().loop_pose(dt_ms, elapsed_ms, pose)
+        for eye in (pose.left, pose.right):
+            eye.scale_y = 0.62
+            eye.squash = 0.10
+            eye.lid_openness = 0.55
+            eye.upper_lid_curvature = -0.22

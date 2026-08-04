@@ -226,6 +226,7 @@ class AnimationStudioShowcase:
         self.preview_phase_timer_ms = 0.0
 
         self.comparison_mode = False         # C key
+        self.readability_review_mode = False  # E key toggle (Emotional Readability Review Mode)
         self.record_mode = False             # R key
         self.record_state_timer_ms = 0.0
         self.record_state_idx = 0
@@ -426,6 +427,20 @@ class AnimationStudioShowcase:
             self.transition_matrix_enabled = not self.transition_matrix_enabled
             if self.transition_matrix_enabled:
                 self.active_tab_idx = 2
+
+        elif key == pygame.K_e:
+            # Toggle Emotional Readability Review Mode (Refinement 7)
+            self.readability_review_mode = not self.readability_review_mode
+            if self.readability_review_mode:
+                import random
+                rand_st = random.choice(STATE_ORDER)
+                self.trigger_state(rand_st)
+                self.show_notification(
+                    "Emotional Readability Review Mode ACTIVE (No UI Labels). "
+                    "Press E to exit."
+                )
+            else:
+                self.show_notification("Emotional Readability Review Mode OFF.")
 
         elif key == pygame.K_p or key == pygame.K_F12:
             # Export Screenshot PNG
@@ -671,7 +686,17 @@ class AnimationStudioShowcase:
 
     def render(self) -> None:
         t_start = time.perf_counter()
-        self.screen.fill(C_BG)
+        self.screen.fill((0, 0, 0))
+
+        if self.readability_review_mode:
+            # Emotional Readability Review Mode: Clean full screen rendering without UI labels
+            full_rect = pygame.Rect(0, 0, self.window_w, self.window_h)
+            self._render_single_view(full_rect)
+            if self.notification_timer_ms > 0:
+                self._render_notification()
+            pygame.display.flip()
+            self.dt_render_ms = (time.perf_counter() - t_start) * 1000.0
+            return
 
         # Viewport layout bounds
         sb_w = 180

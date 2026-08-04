@@ -21,7 +21,7 @@ from typing import Tuple
 _DEFAULT_PARAMS = {
     "pos_x": 0.0,
     "pos_y": 0.0,
-    "radius": 90.0,
+    "radius": 75.0,
     "scale_x": 1.0,
     "scale_y": 1.0,
     "stretch": 0.0,
@@ -50,7 +50,7 @@ _PARAM_NAMES: Tuple[str, ...] = tuple(_DEFAULT_PARAMS.keys())
 class EyeParams:
     pos_x: float = 0.0
     pos_y: float = 0.0
-    radius: float = 90.0
+    radius: float = 75.0
     scale_x: float = 1.0
     scale_y: float = 1.0
     stretch: float = 0.0
@@ -112,19 +112,28 @@ class EyeParams:
                 setattr(self, name, ov)
 
     def clamp_safe(self) -> None:
-        """Clamp ratios that can produce rendering artefacts when out of range."""
+        """Clamp ratios and values to safe physical and rendering boundaries."""
         if self.opacity > 1.0:
             self.opacity = 1.0
         elif self.opacity < 0.0:
             self.opacity = 0.0
-        if self.scale_x < 0.01:
-            self.scale_x = 0.01
-        if self.scale_y < 0.01:
-            self.scale_y = 0.01
-        if self.radius < 1.0:
-            self.radius = 1.0
-        if self.iris_scale < 0.1:
-            self.iris_scale = 0.1
+
+        # Physical geometry & transform bounds
+        self.radius = max(10.0, min(110.0, self.radius))
+        self.scale_x = max(0.10, min(1.35, self.scale_x))
+        self.scale_y = max(0.10, min(1.35, self.scale_y))
+        self.stretch = max(-0.35, min(0.35, self.stretch))
+        self.squash = max(0.0, min(0.40, self.squash))
+        self.rotation = max(-0.35, min(0.35, self.rotation))
+        self.iris_scale = max(0.10, min(1.50, self.iris_scale))
+
+        # Dynamic offsets bounds
+        self.look_offset_x = max(-36.0, min(36.0, self.look_offset_x))
+        self.look_offset_y = max(-36.0, min(36.0, self.look_offset_y))
+        self.bounce_offset_x = max(-26.0, min(26.0, self.bounce_offset_x))
+        self.bounce_offset_y = max(-26.0, min(26.0, self.bounce_offset_y))
+        self.micro_offset_x = max(-10.0, min(10.0, self.micro_offset_x))
+        self.micro_offset_y = max(-10.0, min(10.0, self.micro_offset_y))
 
 
 def blend_params(a: EyeParams, b: EyeParams, t: float) -> EyeParams:

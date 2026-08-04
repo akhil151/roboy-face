@@ -357,53 +357,11 @@ class Renderer:
 
         layout = self._layout
 
-        # --- Layer 1: sclera (rotated ellipse)
+        # --- Layer 1: sclera (white geometry)
         self._aa_filled_ellipse(surface, cx, cy, rx, ry, eye_color, rotation=rot)
 
-        # --- Layer 2: iris (circle, offset by look vector)
-        iris_ratio = layout.iris_radius_ratio * p.iris_scale
-        max_iris_r = min(rx, ry) * iris_ratio
-        look_mag = math.hypot(p.look_offset_x, p.look_offset_y)
-        max_look = layout.look_max_offset
-        if max_look > 0:
-            look_t = min(1.0, look_mag / max_look)
-            iris_r = max_iris_r * (1.0 - look_t * 0.05)
-        else:
-            iris_r = max_iris_r
-
-        # Iris follows the look direction but slightly less than full offset
-        # so iris stays mostly inside the sclera.
-        iris_cx = cx + p.look_offset_x * (1.0 - iris_ratio * 0.3)
-        iris_cy = cy + p.look_offset_y * (1.0 - iris_ratio * 0.3)
-        # Apply rotation around eye center for the iris position.
-        iris_cx, iris_cy = self._rotate_point(iris_cx, iris_cy, cx, cy, rot)
-        self._aa_filled_circle(surface, iris_cx, iris_cy, iris_r, iris_color)
-
-        # --- Layer 3: pupil (Phase 2 can make this larger / animated)
-        pupil_r = iris_r * self._default_pupil_ratio
-        if pupil_r >= 0.75:
-            self._aa_filled_circle(surface, iris_cx, iris_cy, pupil_r, pupil_color)
-
-        # --- Layer 4: highlight(s).  Primary highlight + tiny secondary for realism.
-        hl_r = min(rx, ry) * layout.highlight_radius_ratio
-        hl_off_x = rx * layout.highlight_offset_ratio * (-0.5)
-        hl_off_y = -ry * layout.highlight_offset_ratio * 0.8
-        hl_cx = cx + hl_off_x + p.look_offset_x * 0.3
-        hl_cy = cy + hl_off_y + p.look_offset_y * 0.3
-        hl_cx, hl_cy = self._rotate_point(hl_cx, hl_cy, cx, cy, rot)
-        self._aa_filled_circle(surface, hl_cx, hl_cy, hl_r, hl_color)
-
-        # Secondary tiny highlight - reserved / subtle today.
-        hl2_r = hl_r * 0.35
-        if hl2_r >= 0.75:
-            hl2_cx = cx - hl_off_x * 0.2 + p.look_offset_x * 0.15
-            hl2_cy = cy + hl_off_y * 0.25 + p.look_offset_y * 0.15
-            hl2_cx, hl2_cy = self._rotate_point(hl2_cx, hl2_cy, cx, cy, rot)
-            self._aa_filled_circle(surface, hl2_cx, hl2_cy, hl2_r, hl_color)
-
-        # --- Layer 5: eyelid masks (upper / lower)
+        # --- Layer 5: eyelid masks (black background overlay)
         total_close = min(1.0, p.blink_weight + (1.0 - p.lid_openness))
-        # Upper lid moves slightly faster during a blink for realism.
         upper_close = min(1.0, total_close * 0.5 + p.blink_weight * 0.5)
         lower_close = min(1.0, total_close * 0.5 + p.blink_weight * 0.45)
 
@@ -419,23 +377,6 @@ class Renderer:
             p.lower_lid_curvature,
             upper=False, color=lid_color, rotation=rot,
         )
-
-        # --- Layer 6 (reserved): Glow / rim crescent.
-        # When glow_strength > 0, a subtle crescent rim light is drawn to the
-        # outer sclera.  The effect is proportional to p.glow_strength.
-        if p.glow_strength > 0.001:
-            glow_alpha = min(1.0, p.glow_strength)
-            glow_color = self._blend_color(self._highlight_color, glow_alpha * 0.6)
-            crescent_off_x = -rx * 0.25
-            crescent_off_y = -ry * 0.4
-            self._draw_crescent(
-                surface, cx, cy,
-                outer_r=max(rx, ry) * 1.02,
-                inner_r=max(rx, ry) * 0.88,
-                offset_x=crescent_off_x,
-                offset_y=crescent_off_y,
-                color=glow_color,
-            )
 
     # ------------------------------------------------------------------
     # Public entry points

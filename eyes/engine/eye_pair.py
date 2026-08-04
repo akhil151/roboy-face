@@ -91,9 +91,65 @@ class EyePair:
         self.left.blend_max(other.left)
         self.right.blend_max(other.right)
 
-    def clamp_safe(self) -> None:
+    def clamp_safe(self, display_width: float = 800.0, display_height: float = 480.0) -> None:
+        import math
         self.left.clamp_safe()
         self.right.clamp_safe()
+
+        # Resolution-independent safe region bounds
+        margin = min(display_width, display_height) * 0.025
+        min_spacing = display_width * 0.22
+        max_spacing = display_width * 0.48
+
+        # 1. Soft spacing constraint
+        current_spacing = self.right_center_x - self.left_center_x
+        if current_spacing < min_spacing:
+            mid_x = (self.left_center_x + self.right_center_x) * 0.5
+            target_left = mid_x - min_spacing * 0.5
+            target_right = mid_x + min_spacing * 0.5
+            self.left_center_x += (target_left - self.left_center_x) * 0.25
+            self.right_center_x += (target_right - self.right_center_x) * 0.25
+        elif current_spacing > max_spacing:
+            mid_x = (self.left_center_x + self.right_center_x) * 0.5
+            target_left = mid_x - max_spacing * 0.5
+            target_right = mid_x + max_spacing * 0.5
+            self.left_center_x += (target_left - self.left_center_x) * 0.25
+            self.right_center_x += (target_right - self.right_center_x) * 0.25
+
+        # 2. Resolution-independent canvas boundary constraint with soft spring/damping restoration
+        damping = 0.85
+        for eye in (self.left, self.right):
+            sx = eye.scale_x + eye.stretch - eye.squash * 0.5
+            sy = eye.scale_y + eye.squash - eye.stretch * 0.5
+            eff_rx = eye.radius * max(0.01, sx)
+            eff_ry = eye.radius * max(0.01, sy)
+
+            cos_r = abs(math.cos(eye.rotation))
+            sin_r = abs(math.sin(eye.rotation))
+            extent_x = eff_rx * cos_r + eff_ry * sin_r
+            extent_y = eff_rx * sin_r + eff_ry * cos_r
+
+            total_cx = eye.pos_x + eye.look_offset_x + eye.micro_offset_x + eye.bounce_offset_x
+            total_cy = eye.pos_y + eye.look_offset_y + eye.micro_offset_y + eye.bounce_offset_y
+
+            min_x = margin + extent_x
+            max_x = display_width - margin - extent_x
+            min_y = margin + extent_y
+            max_y = display_height - margin - extent_y
+
+            if total_cx < min_x:
+                overflow = min_x - total_cx
+                eye.look_offset_x += overflow * damping
+            elif total_cx > max_x:
+                overflow = max_x - total_cx
+                eye.look_offset_x += overflow * damping
+
+            if total_cy < min_y:
+                overflow = min_y - total_cy
+                eye.look_offset_y += overflow * damping
+            elif total_cy > max_y:
+                overflow = max_y - total_cy
+                eye.look_offset_y += overflow * damping
 
     # ------------------------------------------------------------------
     # Convenience helpers

@@ -60,17 +60,17 @@ class SleepyAnimation(ExpressiveAnimation):
             eye.pos_y = self._cy + 3.5
             eye.radius = target_radius
             eye.scale_y = 0.80
-            eye.lid_openness = 0.42
-            eye.upper_lid_curvature = 0.24
-            eye.blink_weight = 0.22
+            eye.lid_openness = 0.35
+            eye.upper_lid_curvature = 0.28
+            eye.blink_weight = 0.20
             eye.iris_scale = 0.88
 
     def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:
         super().loop_pose(dt_ms, elapsed_ms, pose)
         # Slow sinusoidal lid droop and heavy blink signature motion
-        droop_sine = 0.08 * math.sin(elapsed_ms * 0.001)
+        droop_sine = 0.06 * math.sin(elapsed_ms * 0.001)
         for eye in (pose.left, pose.right):
-            eye.lid_openness = max(0.20, 0.42 + droop_sine)
+            eye.lid_openness = max(0.15, 0.35 + droop_sine)
 
         cycle_t = (elapsed_ms % 5000.0) / 5000.0
         if 0.60 <= cycle_t <= 0.80:

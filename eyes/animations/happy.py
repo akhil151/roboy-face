@@ -57,10 +57,10 @@ class HappyAnimation(ExpressiveAnimation):
         return StateClips(
             enter=make_basic_enter_clip(
                 duration_ms=350.0,
-                stretch_at_start=0.10,
-                squash_at_end=0.08,
-                overshoot_amount=0.15,
-                anticipation_amount=0.08,
+                stretch_at_start=0.05,
+                squash_at_end=0.04,
+                overshoot_amount=0.10,
+                anticipation_amount=0.05,
             ),
             loop=make_breathing_loop_clip(
                 breathing_cfg=bundle.breathing,
@@ -70,23 +70,23 @@ class HappyAnimation(ExpressiveAnimation):
         )
 
     def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
-        target_radius = self._base_radius * 0.96
+        target_radius = self._base_radius * 0.98
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
             eye.pos_x = cx
-            eye.pos_y = self._cy + 1.8
+            eye.pos_y = self._cy + 1.5
             eye.radius = target_radius
-            eye.scale_y = 0.86
-            eye.scale_x = 1.07
-            eye.squash = 0.09
+            eye.scale_y = 0.88
+            eye.scale_x = 1.05
+            eye.squash = 0.02
             eye.upper_lid_curvature = 0.20
-            eye.lower_lid_curvature = -0.24
-            eye.lid_openness = 0.80
-            eye.iris_scale = 0.92
+            eye.lower_lid_curvature = -0.38
+            eye.lid_openness = 0.76
+            eye.iris_scale = 0.94
 
     def entry_pose(self, t: float, pose: EyePair) -> None:
         super().entry_pose(t, pose)
-        # Apply bounce impulse accent during enter
-        bounce_accent_helper(pose, 16.0, t * 350.0, amount=0.5)
+        # Apply gentle bounce impulse accent during enter
+        bounce_accent_helper(pose, 8.0, t * 350.0, amount=0.35)
 
     def loop_pose(self, dt_ms: float, elapsed_ms: float, pose: EyePair) -> None:
         super().loop_pose(dt_ms, elapsed_ms, pose)
@@ -97,8 +97,8 @@ class HappyAnimation(ExpressiveAnimation):
 
     def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
         return {
-            "bounce": 0.50,
-            "pulse": 0.20,
+            "bounce": 0.20,
+            "pulse": 0.15,
             "scan": 0.0,
-            "blink_motion": 1.2,
+            "blink_motion": 1.0,
         }

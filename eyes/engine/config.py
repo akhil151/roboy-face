@@ -26,12 +26,29 @@ class DisplayConfig:
 @dataclass(frozen=True)
 class EyeLayoutConfig:
     center_y: float = 240.0
-    eye_radius: float = 90.0
+    eye_radius: float = 75.0
     eye_spacing: float = 280.0
     iris_radius_ratio: float = 0.42
     highlight_radius_ratio: float = 0.12
     highlight_offset_ratio: float = 0.25
     look_max_offset: float = 35.0
+
+
+@dataclass(frozen=True)
+class SafeRegionConfig:
+    margin_ratio: float = 0.025
+    min_eye_spacing_ratio: float = 0.22
+    max_eye_spacing_ratio: float = 0.48
+    min_eye_radius_ratio: float = 0.02
+    max_eye_radius_ratio: float = 0.23
+    max_look_offset_ratio: float = 0.075
+    max_bounce_ratio: float = 0.055
+    max_stretch: float = 0.35
+    max_squash: float = 0.40
+    min_scale: float = 0.10
+    max_scale: float = 1.35
+    max_rotation: float = 0.35
+    soft_damping_factor: float = 0.85
 
 
 @dataclass(frozen=True)
@@ -65,5 +82,7 @@ class MicroMotionConfig:
 class EngineConfig:
     display: DisplayConfig = field(default_factory=DisplayConfig)
     layout: EyeLayoutConfig = field(default_factory=EyeLayoutConfig)
+    safe_region: SafeRegionConfig = field(default_factory=SafeRegionConfig)
     timing: TimingConfig = field(default_factory=TimingConfig)
     micro_motion: MicroMotionConfig = field(default_factory=MicroMotionConfig)
+

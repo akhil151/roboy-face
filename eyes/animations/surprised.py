@@ -57,39 +57,39 @@ class SurprisedAnimation(ExpressiveAnimation):
         return StateClips(
             enter=make_basic_enter_clip(
                 duration_ms=180.0,
-                stretch_at_start=0.12,
-                squash_at_end=0.04,
-                overshoot_amount=0.18,
-                anticipation_amount=0.04,
+                stretch_at_start=0.06,
+                squash_at_end=0.03,
+                overshoot_amount=0.10,
+                anticipation_amount=0.03,
             ),
             loop=super().configure_clips(bundle).loop,
             exit=make_basic_exit_clip(duration_ms=300.0),
         )
 
     def configure_target_pose(self, bundle: PersonalityBundle, pose: EyePair) -> None:
-        target_radius = self._base_radius * 1.12
+        target_radius = self._base_radius * 1.04
         for eye, cx in [(pose.left, self._left_cx), (pose.right, self._right_cx)]:
             eye.pos_x = cx
-            eye.pos_y = self._cy - 5.5
+            eye.pos_y = self._cy - 3.0
             eye.radius = target_radius
-            eye.scale_y = 1.14
-            eye.scale_x = 1.05
-            eye.stretch = 0.09
-            eye.lid_openness = 1.12
-            eye.upper_lid_curvature = -0.20
-            eye.lower_lid_curvature = 0.14
-            eye.iris_scale = 1.10
+            eye.scale_y = 1.05
+            eye.scale_x = 1.04
+            eye.stretch = 0.08
+            eye.lid_openness = 1.15
+            eye.upper_lid_curvature = -0.25
+            eye.lower_lid_curvature = 0.18
+            eye.iris_scale = 1.05
 
     def entry_pose(self, t: float, pose: EyePair) -> None:
         super().entry_pose(t, pose)
-        # Apply expansion helper on enter
-        eye_expansion_helper(pose, amount=0.8, progress=t)
+        # Apply gentle expansion helper on enter
+        eye_expansion_helper(pose, amount=0.15, progress=t)
 
     def loop_intensities(self, bundle: PersonalityBundle) -> dict[str, float]:
         # Minimal loop movement (held wide open freeze)
         return {
-            "bounce": 0.1,
-            "pulse": 0.05,
+            "bounce": 0.05,
+            "pulse": 0.02,
             "scan": 0.0,
-            "blink_motion": 1.2,
+            "blink_motion": 1.0,
         }

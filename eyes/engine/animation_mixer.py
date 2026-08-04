@@ -327,9 +327,9 @@ class AnimationMixer:
             return
         p = max(0.0, min(1.0, pulse))
         for eye in (final.left, final.right):
-            eye.bounce_offset_y += -p * 3.5
-            eye.stretch += p * 0.04
-            eye.squash += p * 0.02
-            eye.scale_y += p * 0.025
-            eye.scale_x -= p * 0.01
+            eye.bounce_offset_y += -p * 1.8
+            eye.stretch += p * 0.02
+            eye.squash += p * 0.01
+            eye.scale_y += p * 0.015
+            eye.scale_x -= p * 0.005
 
