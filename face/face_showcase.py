@@ -383,8 +383,8 @@ class FaceStudioShowcase:
 
         # Mouse look
         mx, my = pygame.mouse.get_pos()
-        self.mouse_norm = (mx / float(self.window_w), my / float(self.window_h))
-        self.engine.look_at(mx, my)
+        self.mouse_norm = (max(0.0, min(1.0, mx / float(self.window_w))), max(0.0, min(1.0, my / float(self.window_h))))
+        self.engine.look_at(self.mouse_norm[0], self.mouse_norm[1])
 
         # Record mode auto cycle
         if self.record_mode:

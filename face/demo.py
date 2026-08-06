@@ -58,7 +58,12 @@ def run_face_demo() -> None:
         speech_timer += dt_s
 
         mx, my = pygame.mouse.get_pos()
-        face.look_at(mx, my)
+        disp_w, disp_h = screen.get_size()
+        # Normalize to LookController's [0,1] coordinate space.
+        face.look_at(
+            max(0.0, min(1.0, mx / float(disp_w))),
+            max(0.0, min(1.0, my / float(disp_h))),
+        )
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

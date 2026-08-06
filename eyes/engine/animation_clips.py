@@ -136,12 +136,12 @@ class ClipPlayer:
         self._completed = False
 
     # ------------------------------------------------------------------
-    def apply(self, dt_ms: float, pose: EyePair, global_weight: float = 1.0) -> float:
-        """Advance the clip by ``dt_ms`` and write additively into ``pose``.
+    def apply(self, dt_ms: float, pose: EyePair, global_weight: float = 1.0) -> float:        """Advance the clip by ``dt_ms`` and write additively into ``pose``.
 
-        Returns the effective global-weight used this frame so callers can
-        cross-fade between players.
-        """
+        Returns the effective weight used this frame so callers can cross-fade
+        between players.  For clips with an overshoot envelope the returned
+        weight can briefly go slightly negative (anticipation) or above 1.0
+        (overshoot)."""
         if self._completed:
             return 0.0
         self._elapsed_ms += dt_ms
@@ -152,24 +152,22 @@ class ClipPlayer:
             t = 1.0
 
         eased_t = self._clip.weight_ease(t)
-        # For overshoot-style entry clips, replace eased_t with the full
-        # anticipation/overshoot/settle envelope.
+        # For overshoot-style entry clips, the clip's content weight follows
+        # the full anticipation/overshoot/settle envelope so the overshoot is
+        # actually applied (previously overshoot_t was computed but the weight
+        # effectively multiplied by 1.0, making it dead).
         if self._clip.overshoot_cfg is not None:
-            env_t = overshoot_envelope(t, self._clip.overshoot_cfg)
-            # env_t may be slightly negative (anticipation) or > 1 (overshoot).
-            global_weight *= 1.0
-            # We capture this override later via overshoot_t.
-            overshoot_t = env_t
+            overshoot_t = overshoot_envelope(t, self._clip.overshoot_cfg)
         else:
             overshoot_t = eased_t
 
-        weight = eased_t * global_weight
+        weight = overshoot_t * global_weight
         if weight <= 0.0 and infinite:
             return 0.0
 
         # 1. Static pose function (for parameter targets).
         if self._clip.pose_fn is not None:
-            self._clip.pose_fn(pose, t, overshoot_t if self._clip.overshoot_cfg else eased_t)
+            self._clip.pose_fn(pose, t, overshoot_t)
 
         # 2. Edge effects: optional squash at start, stretch at end.
         if self._clip.edge_stretch is not None and t < 0.45:

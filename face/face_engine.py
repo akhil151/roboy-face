@@ -89,8 +89,19 @@ class FaceEngine:
         self._clock = pygame.time.Clock()
 
     def render_frame(self) -> None:
-        """Render active composite frame."""
-        eye_pose, mouth_params, ctx = self._mixer.step(0.0)
+        """Render active composite frame.
+
+        Advances the animation by the real elapsed time since the previous
+        frame (measured with the existing clock) and renders the result, so
+        embedding apps that drive the loop solely with render_frame() keep
+        animating (blinks, look controller, state transitions).  Callers
+        should not also call step() in the same frame.
+        """
+        if self._clock is None:
+            self._clock = pygame.time.Clock()
+        dt_ms = self._clock.tick(0)
+        dt_ms = min(dt_ms, 66.0)
+        eye_pose, mouth_params, ctx = self._mixer.step(dt_ms)
         self._composer.render(eye_pose, mouth_params, ctx)
 
     @staticmethod

@@ -90,7 +90,7 @@ class CinematicBlender:
     ) -> None:
         self._default_ms = clamp_duration(default_duration_ms)
         self._morph_cfg = morph_cfg or EmotionMorphConfig()
-        self._cinematic_scale = clamp01(cinematic_scale + 1.0) * 0.5 + 0.5
+        self._cinematic_scale = clamp01(cinematic_scale)
 
         # Internal: current FROM and TO snapshots.
         self._from_pose: Optional[EyePair] = None
@@ -114,7 +114,7 @@ class CinematicBlender:
 
     def set_cinematic_scale(self, scale: float) -> None:
         """Scale anticipation/overshoot globally (0 = vanilla blend, >1 = expressive)."""
-        self._cinematic_scale = clamp01(scale + 1.0) * 0.5 + 0.5
+        self._cinematic_scale = clamp01(scale)
 
     def set_default_duration(self, duration_ms: float) -> None:
         self._default_ms = clamp_duration(duration_ms)
@@ -222,9 +222,6 @@ class EmotionLayerCompositor:
     def __init__(self) -> None:
         self._layers: Dict[str, EmotionLayer] = {}
         self._neutral_pose: Optional[EyePair] = None
-        # Scratch buffers - never reallocate.
-        self._scratch_a: Optional[EyePair] = None
-        self._scratch_b: Optional[EyePair] = None
 
     # ------------------------------------------------------------------
     def set_neutral(self, pose: EyePair) -> None:
@@ -283,63 +280,43 @@ class EmotionLayerCompositor:
         is returned.  If a ``neutral_pose`` is provided and weights sum to < 1,
         the remainder is filled by the neutral pose (useful for partial layer
         coverage)."""
+        # Fall back to the stored neutral (set_neutral) when none is passed.
+        neutral_pose = neutral_pose or self._neutral_pose
         if not self._layers:
             return 0.0
         total = self.weight_sum()
         if total <= 0.0:
             return 0.0
 
-        # Allocate scratch buffers on first use.
-        if self._scratch_a is None or self._scratch_b is None:
-            self._scratch_a = dst.copy()
-            self._scratch_b = dst.copy()
+        # Mathematically correct weighted blend: every layer contributes in
+        # proportion to its configured weight.  (Previously the first layer
+        # was seeded at full influence and the rest accumulated via repeated
+        # lerp, so configured weights were not honored.)
+        active = [(l.pose, l.weight) for l in self._layers.values() if l.weight > 0.0]
+        if not active:
+            return 0.0
 
-        layers = list(self._layers.values())
-        # Normalize to 1 if > 1; otherwise keep raw weights and fill remainder
-        # with neutral if provided.
-        needs_neutral = neutral_pose is not None and total < 1.0
-        if total > 1.0:
-            scale = 1.0 / total
-            normalized = [(l, l.weight * scale) for l in layers]
-        else:
-            normalized = [(l, l.weight) for l in layers]
-
-        # Seed the accumulator with the first layer weighted in.
-        first_layer, first_w = normalized[0]
-        dst.copy_from(first_layer.pose)
-        # To properly weight it we'll blend from zero - but EyeParams doesn't
-        # have a zero; instead use a relative blend approach: dst = neutral/from
-        # and then accumulate.  Simplest correct: start with neutral then add
-        # each layer's deviation weighted.  Do that instead.
-        if neutral_pose is not None:
-            dst.copy_from(neutral_pose)
-            neutral = neutral_pose
-        else:
-            dst.copy_from(first_layer.pose)
-            # Use identity from first layer for relative.
-            neutral = first_layer.pose
-            normalized = normalized[1:]  # skip first, already seeded at weight 1
-
-        scratch = self._scratch_a
-        for layer, w in normalized:
+        # Running weighted average: dst = sum(w_i * pose_i) / sum(w_i).
+        # With each step t = w_i / (accum_w + w_i), dst.lerp_into maintains
+        # the exact weighted mean, deterministically in layer order.
+        first_pose, first_w = active[0]
+        dst.copy_from(first_pose)
+        accum_w = first_w
+        for pose, w in active[1:]:
             if w <= 0.0:
                 continue
-            # Compute weighted layer = neutral + (layer - neutral) * w
-            # using lerp_into.
-            scratch.copy_from(neutral)
-            scratch.lerp_into(neutral, layer.pose, min(1.0, w))
-            # Average into dst with weight.
-            # For accumulator we want dst = weighted combination of all
-            # contributions.  Use dst.lerp_into(dst, scratch, w) when
-            # dst is already carrying prior accum.
-            dst.lerp_into(dst, scratch, min(1.0, w))
+            dst.lerp_into(dst, pose, w / (accum_w + w))
+            accum_w += w
 
-        if needs_neutral and total < 1.0:
-            # Blend dst toward neutral by (1 - total) to fill the gap.
-            remaining = 1.0 - total
-            # lerp: dst = dst * total + neutral * remaining
-            # which is equivalent to: lerp(neutral, dst, total)
+        if total > 1.0:
+            # Weights normalized automatically: the accumulator already
+            # produced the convex combination of the layers.
+            pass
+        elif neutral_pose is not None:
+            # Weights sum to < 1: fill the remainder with the neutral pose so
+            # the blend is a full convex combination.
             dst.lerp_into(neutral_pose, dst, total)
+        # else: partial-weight layer blend used as-is (no neutral available).
 
         return min(1.0, total)
 

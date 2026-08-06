@@ -316,8 +316,14 @@ class MicroBehaviourSystem:
         self._micro_elapsed_ms += dt_s * 1000.0
 
         # Reset micro-motion channels: these belong exclusively to MBS.
-        # State layers never write micro_offset_*; resetting here prevents
-        # accumulation and matches the architectural "fresh each frame" contract.
+        # State micro offsets are preserved before reset (see below); resetting prevents
+        # accumulation and matches the architectural "fresh each frame" contract;
+        # state-generated micro offsets (e.g. the Thinking state's tiny twitch)
+        # are preserved below and restored after the layers run.
+        state_micro = (
+            (pose.left.micro_offset_x, pose.left.micro_offset_y),
+            (pose.right.micro_offset_x, pose.right.micro_offset_y),
+        )
         for eye in (pose.left, pose.right):
             eye.micro_offset_x = 0.0
             eye.micro_offset_y = 0.0
@@ -363,6 +369,14 @@ class MicroBehaviourSystem:
 
         # --- Layers 6 (natural pauses) & 7 (safety net) handled above.
         self._safety_net(pose, amounts["safety_net"])
+
+        # Restore any state-generated micro offsets on top of this system's
+        # output so per-state micro-motion (the Thinking state's tiny twitch)
+        # remains visible.
+        pose.left.micro_offset_x += state_micro[0][0]
+        pose.left.micro_offset_y += state_micro[0][1]
+        pose.right.micro_offset_x += state_micro[1][0]
+        pose.right.micro_offset_y += state_micro[1][1]
 
     # ------------------------------------------------------------------
     # Debug / introspection

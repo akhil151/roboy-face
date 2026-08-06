@@ -800,6 +800,10 @@ class MicroCorrectionPrimitive:
             self._cfg.interval_min_seconds, self._cfg.interval_max_seconds
         )
         self._accum_s = 0.0
+        # Correction lifecycle: 0 = idle, 1 = moving/holding at the correction
+        # offset, 2 = snapping back toward zero.
+        self._phase = 0
+        self._dwell_s = 0.0
 
     def set_config(self, cfg: MicroCorrectionConfig) -> None:
         self._cfg = cfg
@@ -812,6 +816,8 @@ class MicroCorrectionPrimitive:
         )
         self._settle_x.set_immediate(0.0)
         self._settle_y.set_immediate(0.0)
+        self._phase = 0
+        self._dwell_s = 0.0
 
     def get_offsets(self) -> Tuple[float, float]:
         return (self._settle_x.value, self._settle_y.value)
@@ -823,20 +829,36 @@ class MicroCorrectionPrimitive:
     def update(self, dt_s: float, amount: float = 1.0) -> Tuple[float, float]:
         self._accum_s += dt_s
         self._time_since_last -= dt_s
-        if self._time_since_last <= 0.0:
-            chance = self._cfg.chance_per_second * dt_s * 10.0
-            if random.random() < chance or self._accum_s > self._cfg.interval_max_seconds * 1.5:
-                ang = random.uniform(0.0, 2.0 * math.pi)
-                mag = random.uniform(0.1, self._cfg.max_offset_px) * amount
-                self._settle_x.set_target(math.cos(ang) * mag)
-                self._settle_y.set_target(math.sin(ang) * mag)
-                # Then spring returns toward zero.
-                self._settle_x.set_target(0.0)
-                self._settle_y.set_target(0.0)
+        if self._phase == 0:
+            # Idle: wait for the next correction interval, then move the
+            # spring toward a tiny random offset.  (Previously the target was
+            # reset to zero on the very same frame, so the spring never moved.)
+            if self._time_since_last <= 0.0:
+                chance = self._cfg.chance_per_second * dt_s * 10.0
+                if random.random() < chance or self._accum_s > self._cfg.interval_max_seconds * 1.5:
+                    ang = random.uniform(0.0, 2.0 * math.pi)
+                    mag = random.uniform(0.1, self._cfg.max_offset_px) * amount
+                    self._settle_x.set_target(math.cos(ang) * mag)
+                    self._settle_y.set_target(math.sin(ang) * mag)
+                    self._dwell_s = max(0.0, self._cfg.settle_duration_ms) / 1000.0
+                    self._phase = 1
+                    self._accum_s = 0.0
+        elif self._phase == 1:
+            # Hold the correction briefly once the spring has settled, then
+            # snap back toward zero.
+            if self._settle_x.at_rest() and self._settle_y.at_rest():
+                self._dwell_s -= dt_s
+                if self._dwell_s <= 0.0:
+                    self._settle_x.set_target(0.0)
+                    self._settle_y.set_target(0.0)
+                    self._phase = 2
+        else:  # phase == 2
+            # Snapping back to zero; the correction is complete once settled.
+            if self._settle_x.at_rest() and self._settle_y.at_rest():
+                self._phase = 0
                 self._time_since_last = random.uniform(
                     self._cfg.interval_min_seconds, self._cfg.interval_max_seconds
                 )
-                self._accum_s = 0.0
         return (self._settle_x.update(dt_s), self._settle_y.update(dt_s))
 
     def apply_to_pair(self, pose: EyePair, dt_s: float, amount: float = 1.0) -> None:
