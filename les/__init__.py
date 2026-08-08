@@ -75,8 +75,18 @@ from .director.behavior_director import (
 from .director.behavior_policy import BehaviorPolicy, BehaviorRule, VariantRotation
 
 # --- Timeline / scheduler contracts -----------------------------------------
-from .timeline.timeline import Timeline, TimelineEvent
-from .timeline.scheduler import EngineCommand, EngineCommandName, EngineDriver, Scheduler
+from .timeline.timeline import Timeline, TimelineEvent, DefaultTimeline
+from .timeline.scheduler import (
+    DEFAULT_BEHAVIOR_PLANS,
+    BehaviorPlan,
+    DefaultScheduler,
+    EngineCommand,
+    EngineCommandName,
+    EngineDriver,
+    PlanStep,
+    Scheduler,
+    dispatch_command,
+)
 
 # --- Behaviour contracts ----------------------------------------------------
 from .behaviors import (
@@ -148,10 +158,16 @@ __all__ = [
     # Timeline / scheduler
     "Timeline",
     "TimelineEvent",
+    "DefaultTimeline",
     "EngineCommand",
     "EngineCommandName",
     "EngineDriver",
     "Scheduler",
+    "PlanStep",
+    "BehaviorPlan",
+    "DEFAULT_BEHAVIOR_PLANS",
+    "DefaultScheduler",
+    "dispatch_command",
     # Behaviours
     "Behavior",
     "BehaviorContext",
