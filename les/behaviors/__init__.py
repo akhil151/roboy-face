@@ -10,7 +10,13 @@ The base interface lives here; the concrete behavior modules (idle,
 attention, curiosity, blink) subclass it and are re-exported from this
 facade (same pattern as ``eyes/__init__.py``).
 
-No behavior logic is implemented yet - see each module for TODO markers.
+Note on idle (LES-09A.1): the NATURAL IDLE DECISION LAYER lives in
+``idle_policy.py`` (policy values) and ``idle_behavior.py`` (decision
+orchestration) - ``IdleBehavior`` there is the real decision layer and is
+what ``from les.behaviors import IdleBehavior`` resolves to. The original
+``les/behaviors/idle.py`` scaffold (a ``Behavior`` ABC subclass for the
+BehaviorDirector's registry) remains untouched and is still importable
+from ``les.behaviors.idle`` directly; it is a different contract.
 """
 
 from __future__ import annotations
@@ -78,16 +84,43 @@ class Behavior(ABC):
 
 # Concrete behavior modules - loaded here so
 # ``from les.behaviors import IdleBehavior`` works out of the box.
-from .idle import IdleBehavior  # noqa: E402
 from .attention import AttentionBehavior  # noqa: E402
 from .curiosity import CuriosityBehavior  # noqa: E402
 from .blink import BlinkBehavior  # noqa: E402
 
+# Natural Idle Decision Layer (LES-09A.1). NOTE: the real idle decision
+# layer is exported as ``IdleBehavior`` here (decision orchestration); the
+# Behavior-ABC scaffold in ``les/behaviors/idle.py`` stays importable as
+# ``les.behaviors.idle.IdleBehavior`` for director-registry use.
+from .idle_behavior import (  # noqa: E402
+    IdleBehavior,
+    IdleContext,
+    IdleDecision,
+)
+from .idle_policy import (  # noqa: E402
+    ActionBand,
+    IdleAction,
+    IdlePolicy,
+    IdleTier,
+)
+
+# Idle Execution Bridge (LES-09A.2) - executes IdleDecisions through the
+# existing Timeline -> Scheduler -> EngineCommand -> EngineDriver pipeline.
+# Purely behavioral: imports no pygame / eyes / face.
+from .idle_execution import IdleExecutionBridge  # noqa: E402
+
 __all__ = [
     "BehaviorContext",
     "Behavior",
-    "IdleBehavior",
     "AttentionBehavior",
     "CuriosityBehavior",
     "BlinkBehavior",
+    "IdleBehavior",
+    "IdleContext",
+    "IdleDecision",
+    "ActionBand",
+    "IdleAction",
+    "IdlePolicy",
+    "IdleTier",
+    "IdleExecutionBridge",
 ]

@@ -96,6 +96,7 @@ from .behaviors import (
     AttentionBehavior,
     CuriosityBehavior,
     BlinkBehavior,
+    IdleExecutionBridge,
 )
 
 # --- Transition contracts ---------------------------------------------------
@@ -175,6 +176,7 @@ __all__ = [
     "AttentionBehavior",
     "CuriosityBehavior",
     "BlinkBehavior",
+    "IdleExecutionBridge",
     # Transitions
     "TransitionDirector",
     "TransitionSpec",

@@ -1,5 +1,13 @@
 """
-Idle behavior contract.
+Idle behavior contract (BehaviorDirector-registry scaffold).
+
+NOTE (LES-09A.1): this module is SUPERSEDED by the Natural Idle Decision
+Layer in ``les/behaviors/idle_policy.py`` / ``idle_behavior.py``. The real
+idle DECISION layer is exported as ``les.behaviors.IdleBehavior``; this
+class is the original Behavior-ABC scaffold for the BehaviorDirector's
+registry (evaluate / should_run / plan TimelineEvents) and is kept
+unchanged for that contract. New idle work should extend the decision
+layer, not this scaffold.
 
 The idle behavior represents the robot's resting expressive state - the
 "calm" baseline that runs whenever no other behavior is more relevant.
@@ -12,7 +20,10 @@ from ..timeline.timeline import TimelineEvent
 
 
 class IdleBehavior(Behavior):
-    """Scaffold for the idle behavior.
+    """Scaffold for the idle behavior (BehaviorDirector registry contract).
+
+    Superseded by ``les/behaviors/idle_behavior.IdleBehavior`` for the
+    idle DECISION layer (LES-09A.1). Kept for the Behavior ABC registry.
 
     Future responsibilities (Phase 1):
         * return a low but non-zero relevance score so it always backstops
