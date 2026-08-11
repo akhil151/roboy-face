@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 import pygame
 import pygame.gfxdraw
 
-from .config import EngineConfig
+from .config import EngineConfig, OverlayConfig
 from .eye_pair import EyePair
 from .render_context import RenderContext
 
@@ -78,6 +78,7 @@ class OverlayRenderer:
 
     def __init__(self, config: EngineConfig) -> None:
         self.config = config
+        self.overlay_config: OverlayConfig = config.overlay
         self.enabled: bool = True
         self.global_intensity: float = 1.0
 
@@ -95,6 +96,176 @@ class OverlayRenderer:
         self._caring_particles: List[Particle] = []
         self._caring_cooldown: float = 0.0
 
+        # Track state entry for persistent thinking cue reset
+        self._last_state: Optional[str] = None
+
+    def set_overlay_config(self, config: OverlayConfig) -> None:
+        """Hot-swap the overlay configuration (used by the showcase for
+        the Q key legacy/polished toggle; never by LES).
+        """
+        self.overlay_config = config
+
+    # ------------------------------------------------------------------
+    # Face-space geometry helpers (LES-09B.4 + LES-09B.5)
+    #
+    # Both the thinking "?" and the sleepy ZZZ are placed in FACE SPACE
+    # derived from the actual eye layout - never in the moving eye's local
+    # frame, never at a fixed screen coordinate. Since LES-09B.5 the
+    # thinking "?" hugs the selected eye's OUTER PERIMETER corner (via
+    # ``thinking_anchor`` below) instead of floating centred above the
+    # face; its scale is unchanged. The rendered-eye math mirrors
+    # eyes/engine/renderer.py ``_effective_pos`` / ``_effective_radius``
+    # (the exact functions that draw the sclera), so the regions below
+    # are truthful to what is actually rendered.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def eye_silhouette_region(eye) -> Tuple[float, float, float, float]:
+        """Axis-aligned box of one RENDERED eye: (left, top, right, bottom).
+
+        Mirrors ``Renderer._effective_pos`` (pos + look + micro + bounce
+        offsets) and ``Renderer._effective_radius`` (radius * scale with
+        squash/stretch applied), plus the ``EyePair.clamp_safe`` rotation
+        inflation so the box is valid even for rotated eyes. This is the
+        white silhouette the (white) cue glyphs would blend into - the
+        black eyelid masks are the same colour as the background and do
+        not extend the visible silhouette.
+        """
+        cx = eye.pos_x + eye.look_offset_x + eye.micro_offset_x + eye.bounce_offset_x
+        cy = eye.pos_y + eye.look_offset_y + eye.micro_offset_y + eye.bounce_offset_y
+        sx = max(0.01, eye.scale_x + eye.stretch - eye.squash * 0.5)
+        sy = max(0.01, eye.scale_y + eye.squash - eye.stretch * 0.5)
+        rx = eye.radius * sx
+        ry = eye.radius * sy
+        cos_r = abs(math.cos(eye.rotation))
+        sin_r = abs(math.sin(eye.rotation))
+        ext_x = rx * cos_r + ry * sin_r
+        ext_y = rx * sin_r + ry * cos_r
+        return (cx - ext_x, cy - ext_y, cx + ext_x, cy + ext_y)
+
+    def eye_pair_regions(self, pose) -> Tuple[Tuple[float, float, float, float], ...]:
+        """The rendered silhouette boxes of both eyes for a composed pose."""
+        return (self.eye_silhouette_region(pose.left),
+                self.eye_silhouette_region(pose.right))
+
+    @staticmethod
+    def regions_intersect(a: Tuple[float, float, float, float],
+                          b: Tuple[float, float, float, float],
+                          margin_px: float = 0.0) -> bool:
+        """True when axis-aligned boxes ``a`` and ``b`` intersect.
+
+        ``margin_px`` inflates ``a`` before the test (a configurable
+        safety margin - never a hidden magic number).
+        """
+        al, at, ar, ab = a
+        bl, bt, br, bb = b
+        return not (
+            ar + margin_px < bl or br + margin_px < al
+            or ab + margin_px < bt or bb + margin_px < at
+        )
+
+    def thinking_scale(self) -> float:
+        """The actual thinking cue scale, DERIVED from the eye layout.
+
+        scale = thinking_cue_scale_ratio * eye_radius, so the cue is
+        always a fraction of the real eye size regardless of the display
+        resolution (ratio 0.85 * 75 = 63.75 px; the glyph's visual height
+        is ~1.16x the scale ~74 px vs the ~150 px eye height = roughly
+        half the eye).
+        """
+        return self.overlay_config.thinking_cue_scale_ratio * self.config.layout.eye_radius
+
+    def thinking_cue_region(self, anchor: Tuple[float, float]) -> Tuple[float, float, float, float]:
+        """The "?" glyph's bounding box at ``anchor``: (l, t, r, b).
+
+        Glyph extents are derived from ``_draw_vector_question`` PLUS its
+        stroke width (0.14 * scale, half on each side) so the box is
+        deliberately CONSERVATIVE: the arc path reaches +/- 0.35 * scale
+        horizontally and the stroke extends it to ~0.42 * scale; the arc
+        top is y - 0.55 * scale, minus the stroke ~ y - 0.62 * scale; the
+        dot bottom (a filled circle at y + 0.52 * scale, radius 0.09 *
+        scale) is y + 0.61 * scale - no stroke below it. A box that
+        clears the eyes therefore proves the drawn strokes clear them.
+        """
+        ax, ay = anchor
+        s = self.thinking_scale()
+        return (ax - 0.42 * s, ay - 0.62 * s, ax + 0.42 * s, ay + 0.61 * s)
+
+    @staticmethod
+    def z_cue_region(x: float, y: float, scale: float) -> Tuple[float, float, float, float]:
+        """One Z glyph's bounding box: (l, t, r, b).
+
+        Matches ``_draw_vector_z`` (width 0.8 * scale, height 1.0 * scale
+        centred on the particle) PLUS its stroke width (0.18 * scale, half
+        on each side) so the box is deliberately CONSERVATIVE: the true
+        drawn extent is ~0.49 * scale wide and ~0.59 * scale tall.
+        """
+        return (x - 0.49 * scale, y - 0.59 * scale, x + 0.49 * scale, y + 0.59 * scale)
+
+    def thinking_anchor(self, pose) -> Tuple[float, float]:
+        """The thinking "?" cue anchor, on the eye's OUTER PERIMETER (LES-09B.5).
+
+        The cue is anchored to the outer-top corner of one eye's rendered
+        silhouette (right eye by default - the human-approved direction:
+        the "?" grows from the eye corner instead of floating centred
+        above the face). Placement is derived every frame from the ACTUAL
+        composed pose through the single LES-09B.4 eye-bound calculation
+        (``eye_silhouette_region`` - the same AABB that carries the
+        collision guarantees), so the cue:
+
+          * sits exactly ``clearance`` beyond the eye corner - the glyph
+            box hugs the perimeter (eye silhouette -> clearance -> "?"),
+            never inside the silhouette and never overlapping either eye;
+          * follows the eye through gaze/look movement (the region is
+            recomputed from the composed pose every frame);
+          * keeps the human-approved scale (``thinking_scale()``, which
+            is unchanged); the orbital drift is applied at draw time and
+            is smaller than the clearance.
+
+        Returns the absolute (x, y) anchor WITHOUT orbital drift.
+        """
+        cfg = self.overlay_config
+        regions = self.eye_pair_regions(pose)
+        if cfg.thinking_cue_eye == "left":
+            region = regions[0]
+            outer_x = region[0]   # the eye's outer (left) edge
+            sign = -1.0           # the cue grows toward -x
+        else:
+            region = regions[1]
+            outer_x = region[2]   # the eye's outer (right) edge
+            sign = 1.0            # the cue grows toward +x
+        scale = self.thinking_scale()
+        clearance = cfg.thinking_cue_clearance_ratio * self.config.layout.eye_radius
+        # Diagonal outward offset: clearance + the glyph's half-extent, so
+        # the glyph box starts exactly one clearance beyond the corner.
+        ax = outer_x + sign * (clearance + 0.42 * scale)
+        if cfg.thinking_cue_perimeter == "outer_bottom":
+            ay = region[3] + clearance + 0.62 * scale
+        else:
+            ay = region[1] - clearance - 0.61 * scale
+        return (ax, ay)
+
+    def sleepy_spawn_band(self, pose) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """The ZZZ spawn band in FACE SPACE: ((x_lo, x_hi), (y_lo, y_hi)).
+
+        The band is relative to the right eye's REST centre (face space -
+        it never follows gaze) and is placed so that every Z glyph born in
+        it stays clear of BOTH eyes' worst-case silhouettes: each eye can
+        move by ``look_max_offset`` toward the band, so the band edges
+        clear (rest extent + max gaze offset + glyph half-extent). The Z
+        particles drift UP and RIGHT, i.e. away from the eyes, so the
+        spawn position is their closest approach to the eye geometry.
+        """
+        cfg = self.overlay_config
+        r = self.config.layout.eye_radius
+        bx = pose.right.pos_x
+        by = pose.right.pos_y
+        x_lo = bx + r * cfg.sleepy_cue_x_min_ratio
+        x_hi = bx + r * cfg.sleepy_cue_x_max_ratio
+        y_lo = by - r * cfg.sleepy_cue_y_max_ratio
+        y_hi = by - r * cfg.sleepy_cue_y_min_ratio
+        return ((x_lo, x_hi), (y_lo, y_hi))
+
     def draw(
         self,
         surface: pygame.Surface,
@@ -110,6 +281,12 @@ class OverlayRenderer:
         if effective_intensity <= 0.001:
             return
 
+        # Reset the thinking cue on state entry (so it gets a fresh fade-in
+        # each time the robot enters the thinking state).
+        if self._last_state == "thinking" and state != "thinking":
+            self._thinking_particle = None
+        self._last_state = state
+
         dt_s = ctx.dt_s
         elapsed_s = ctx.elapsed_s
 
@@ -120,10 +297,15 @@ class OverlayRenderer:
         center_y = (l_cy + r_cy) * 0.5
         eye_r = (pose.left.radius + pose.right.radius) * 0.5
 
+        # Thinking "?" and Sleepy ZZZ are placed in FACE SPACE from the
+        # composed pose (LES-09B.4) - the local eye-coordinate references
+        # below are only used by the near-eye decorative overlays (happy /
+        # speaking / surprised / caring / focus), which are intentionally
+        # adjacent to the eye geometry.
         if state == "sleepy":
-            self._draw_sleepy(surface, r_cx, r_cy, eye_r, dt_s, effective_intensity)
+            self._draw_sleepy(surface, pose, dt_s, effective_intensity)
         elif state == "thinking":
-            self._draw_thinking(surface, r_cx, r_cy, eye_r, dt_s, elapsed_s, effective_intensity)
+            self._draw_thinking(surface, pose, dt_s, elapsed_s, effective_intensity)
         elif state == "happy":
             self._draw_happy(surface, l_cx, l_cy, r_cx, r_cy, eye_r, dt_s, effective_intensity)
         elif state == "speaking":
@@ -141,22 +323,24 @@ class OverlayRenderer:
     def _draw_sleepy(
         self,
         surface: pygame.Surface,
-        r_cx: float,
-        r_cy: float,
-        r: float,
+        pose: EyePair,
         dt_s: float,
         intensity: float,
     ) -> None:
+        cfg = self.overlay_config
         self._sleepy_cooldown -= dt_s
         if self._sleepy_cooldown <= 0.0 and len(self._sleepy_particles) < 3:
-            # Spawn a new Z symbol
-            sx = r_cx + random.uniform(r * 0.4, r * 0.8)
-            sy = r_cy - random.uniform(r * 0.2, r * 0.5)
+            # Spawn a new Z symbol in the FACE-SPACE band (LES-09B.4):
+            # outside both eyes' worst-case silhouettes, so the cue can
+            # never overlap the eyes while they droop / move.
+            (x_lo, x_hi), (y_lo, y_hi) = self.sleepy_spawn_band(pose)
+            sx = random.uniform(x_lo, x_hi)
+            sy = random.uniform(y_lo, y_hi)
             scale = random.uniform(0.7, 1.2)
             p = Particle(
                 x=sx,
                 y=sy,
-                lifetime_s=random.uniform(2.0, 2.8),
+                lifetime_s=random.uniform(cfg.sleepy_cue_min_lifetime_s, cfg.sleepy_cue_max_lifetime_s),
                 fade_in_s=0.4,
                 fade_out_s=0.6,
                 vx=random.uniform(8.0, 16.0),
@@ -173,7 +357,7 @@ class OverlayRenderer:
                 alive.append(p)
                 a = p.alpha * intensity
                 if a > 0.01:
-                    self._draw_vector_z(surface, p.x, p.y, scale=p.scale * 12.0, alpha=a)
+                    self._draw_vector_z(surface, p.x, p.y, scale=p.scale * cfg.sleepy_cue_scale_base, alpha=a)
         self._sleepy_particles = alive
 
     def _draw_vector_z(
@@ -199,36 +383,55 @@ class OverlayRenderer:
     def _draw_thinking(
         self,
         surface: pygame.Surface,
-        r_cx: float,
-        r_cy: float,
-        r: float,
+        pose: EyePair,
         dt_s: float,
         elapsed_s: float,
         intensity: float,
     ) -> None:
-        if self._thinking_particle is None or self._thinking_particle.dead:
-            self._thinking_cooldown -= dt_s
-            if self._thinking_cooldown <= 0.0:
-                self._thinking_particle = Particle(
-                    x=r_cx + r * 0.7,
-                    y=r_cy - r * 0.8,
-                    lifetime_s=3.2,
-                    fade_in_s=0.5,
-                    fade_out_s=0.6,
-                )
-                self._thinking_cooldown = 1.2
+        cfg = self.overlay_config
+        # Face-space anchor, recomputed every frame from the actual pose
+        # (LES-09B.4) so the cue keeps its clearance margin at every gaze
+        # target and during every thinking beat.
+        anchor_x, anchor_y = self.thinking_anchor(pose)
+        if cfg.thinking_cue_lifetime_ms > 0:
+            # Legacy pulsing path (lifetime > 0 means cooldown-gated)
+            if self._thinking_particle is None or self._thinking_particle.dead:
+                self._thinking_cooldown -= dt_s
+                if self._thinking_cooldown <= 0.0:
+                    self._thinking_particle = Particle(
+                        x=anchor_x, y=anchor_y,
+                        lifetime_s=cfg.thinking_cue_lifetime_ms / 1000.0,
+                        fade_in_s=cfg.thinking_cue_fade_in_ms / 1000.0,
+                        fade_out_s=cfg.thinking_cue_fade_out_ms / 1000.0,
+                    )
+                    self._thinking_cooldown = 1.2
+            else:
+                self._thinking_particle.update(dt_s)
         else:
-            self._thinking_particle.update(dt_s)
+            # Persistent path: a single cue per thinking state entry
+            if self._thinking_particle is None or self._thinking_particle.dead:
+                self._thinking_particle = Particle(
+                    x=anchor_x, y=anchor_y,
+                    lifetime_s=3600.0,
+                    fade_in_s=cfg.thinking_cue_fade_in_ms / 1000.0,
+                    fade_out_s=cfg.thinking_cue_fade_out_ms / 1000.0,
+                )
+            else:
+                self._thinking_particle.update(dt_s)
 
         p = self._thinking_particle
         if p and not p.dead:
             a = p.alpha * intensity
             if a > 0.01:
-                # Orbital movement around upper right corner of eye
+                # Re-anchor every frame (the particle's birth position is
+                # only the entry anchor) so the cue follows the face and
+                # can never drift into an eye as the gaze moves.
+                p.x = anchor_x
+                p.y = anchor_y
                 orbit_angle = elapsed_s * 1.5
-                ox = r_cx + r * 0.75 + math.cos(orbit_angle) * 10.0
-                oy = r_cy - r * 0.85 + math.sin(orbit_angle * 0.7) * 6.0
-                self._draw_vector_question(surface, ox, oy, scale=18.0, alpha=a)
+                ox = p.x + math.cos(orbit_angle) * cfg.thinking_orbital_amplitude_x
+                oy = p.y + math.sin(orbit_angle * 0.7) * cfg.thinking_orbital_amplitude_y
+                self._draw_vector_question(surface, ox, oy, scale=self.thinking_scale(), alpha=a)
 
     def _draw_vector_question(
         self, surface: pygame.Surface, x: float, y: float, scale: float, alpha: float
