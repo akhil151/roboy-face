@@ -63,7 +63,12 @@ class MouthSpec:
         self.amp = kw.get("amp", 0.0)
         self.waves = kw.get("waves", 1.0)
         self.phase = kw.get("phase", 0.0)
+        self.p0 = kw.get("p0", None)
+        self.p1 = kw.get("p1", None)
+        self.p2 = kw.get("p2", None)
+        self.points = kw.get("points", None)
         self.color = kw.get("color", None)
+
 
 
 class FaceSpec:

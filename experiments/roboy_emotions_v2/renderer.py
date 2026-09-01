@@ -42,6 +42,10 @@ def draw_eye(surf, tf, e: EyeSpec):
     elif e.shape == "heart":
         pts = g.heart_points(e.cx, e.cy, e.heart_scale)
         g.poly_fill(surf, tf, pts, color)
+    elif e.shape in ("polygon", "poly"):
+        g.poly_fill(surf, tf, e.points, color)
+    elif e.shape == "quad_curve":
+        g.quad_curve(surf, tf, e.p0, e.p1, e.p2, e.thickness, color)
     else:
         raise ValueError(f"unknown eye shape: {e.shape}")
 
@@ -76,8 +80,16 @@ def draw_mouth(surf, tf, m: MouthSpec):
         g.poly_fill(surf, tf, top + bot, color)
     elif m.shape == "wavy" or m.shape == "curl":
         g.wavy_line(surf, tf, cx, cy, w, m.amp, m.waves, m.phase, m.thickness, color)
+    elif m.shape in ("polygon", "poly"):
+        g.poly_fill(surf, tf, m.points, color)
+    elif m.shape == "quad_curve":
+        p0 = getattr(m, "p0", (cx - w / 2.0, cy))
+        p1 = getattr(m, "p1", (cx, cy + m.h))
+        p2 = getattr(m, "p2", (cx + w / 2.0, cy))
+        g.quad_curve(surf, tf, p0, p1, p2, m.thickness, color)
     else:
         raise ValueError(f"unknown mouth shape: {m.shape}")
+
 
 
 def draw_overlay(surf, tf, o):

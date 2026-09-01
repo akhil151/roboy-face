@@ -108,6 +108,13 @@ WINK_PERIOD = 3.0         # right eye open/closed cycle
 CONFUSED_PERIOD = 2.7
 
 
+# ---------------------------------------------------------------------------
+# Transition timing & easing
+# ---------------------------------------------------------------------------
+TRANSITION_DURATION = 0.55       # default transition duration (seconds, ~550 ms)
+TRANSITION_EASING = "smootherstep" # smooth acceleration and deceleration
+
+
 @dataclass
 class Config:
     """Bundled configuration so callers can override a single object."""
@@ -125,7 +132,9 @@ class Config:
     mouth_cy = MOUTH_CY
     mouth_w = MOUTH_W
     mouth_thick = MOUTH_THICK
+    transition_duration = TRANSITION_DURATION
 
 
 def default_config() -> Config:
     return Config()
+
