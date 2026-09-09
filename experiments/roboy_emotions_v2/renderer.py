@@ -55,6 +55,14 @@ def pygame_draw_rect(surf, x, y, w, h):
     pygame.draw.rect(surf, cfg.BG_COLOR, (x, y, w, h))
 
 
+MOUTH_ENABLED_EMOTIONS = frozenset({"excited", "surprised", "disgusted", "fearful"})
+
+
+def is_mouth_enabled(emotion: str) -> bool:
+    """Return True if the emotion is configured to display mouth geometry."""
+    return emotion in MOUTH_ENABLED_EMOTIONS
+
+
 def draw_mouth(surf, tf, m: MouthSpec):
     color = _mouth_color(m)
     cx, cy, w = m.cx, m.cy, m.w
@@ -91,16 +99,19 @@ def draw_mouth(surf, tf, m: MouthSpec):
         raise ValueError(f"unknown mouth shape: {m.shape}")
 
 
-
 def draw_overlay(surf, tf, o):
     color = o.color if o.color is not None else cfg.FACE_COLOR
     g.draw_text(surf, tf, o.text, o.cx, o.cy, o.size_norm, color, o.alpha)
 
 
 def render(surf, spec, tf):
-    """Render a full face spec."""
+    """Render a full face spec (Phase 8B: selective mouth policy)."""
     for e in spec.eyes:
         draw_eye(surf, tf, e)
-    draw_mouth(surf, tf, spec.mouth)
+    # Phase 8B: Mouth is rendered ONLY for excited, surprised, disgusted, fearful
+    if is_mouth_enabled(spec.emotion):
+        draw_mouth(surf, tf, spec.mouth)
     for o in spec.overlays:
         draw_overlay(surf, tf, o)
+
+
