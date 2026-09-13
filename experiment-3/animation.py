@@ -434,8 +434,9 @@ class FaceController:
             t_bounce = elapsed - (0.15 * 4.5)
             freq = 3.2
             decay = math.exp(-0.45 * t_bounce)
-            bounce = -24.0 * decay * abs(math.sin(2.0 * math.pi * freq * t_bounce))
-            pulse = 0.06 * decay * math.cos(2.0 * math.pi * freq * t_bounce)
+            fade = 1.0 - smoothstep((u - 0.60) / 0.15) if u > 0.60 else 1.0
+            bounce = -24.0 * decay * abs(math.sin(2.0 * math.pi * freq * t_bounce)) * fade
+            pulse = 0.06 * decay * math.cos(2.0 * math.pi * freq * t_bounce) * fade
             scale_val = 1.22 + pulse
             self.offset_look_y = bounce
         else:
@@ -559,7 +560,8 @@ class FaceController:
         frequency = 2.2 # Hz
 
         decay = math.exp(-decay_rate * elapsed)
-        bounce = -amplitude * decay * abs(math.sin(2.0 * math.pi * frequency * elapsed))
+        fade = 1.0 - smoothstep((u - 0.70) / 0.30) if u > 0.70 else 1.0
+        bounce = -amplitude * decay * abs(math.sin(2.0 * math.pi * frequency * elapsed)) * fade
 
         self.offset_look_y = bounce
 
@@ -567,10 +569,15 @@ class FaceController:
         """Cute blush: soft pink cheek strokes with smooth alpha fade in/out."""
         self.blush_state.set_normalized_progress(u)
 
-        # Subtle happy relaxed eye shape and slight upward tilt/gaze
-        self.set_target_open(0.92, 0.92)
-        self.set_target_scale(1.04)
-        self.set_target_look(0.0, -5.0 * smoothstep(u))
+        # Smooth bell envelope for relaxed open & scale & tilt returning to baseline at end
+        env = math.sin(math.pi * clamp(u, 0.0, 1.0))
+        open_val = 1.0 - 0.08 * env
+        scale_val = DEFAULT_SCALE + 0.04 * env
+        look_y = -5.0 * env
+
+        self.set_target_open(open_val, open_val)
+        self.set_target_scale(scale_val)
+        self.set_target_look(0.0, look_y)
 
     def _update_thinking(self, u: float, elapsed: float, dt: float) -> None:
         """Thinking: upward sideways gaze drift, thoughtful half-blink/squint."""
@@ -655,9 +662,14 @@ class FaceController:
         jitter_x = 0.0
         jitter_y = 0.0
         if 0.15 <= u < 0.85:
-            # Tremor starts after elastic scale peak
+            # High-frequency nervous tremor during hold
             jitter_x = 2.5 * math.sin(2.0 * math.pi * 14.0 * elapsed)
             jitter_y = 2.0 * math.cos(2.0 * math.pi * 16.0 * elapsed)
+        elif u >= 0.85:
+            # Smooth fade-out of micro-jitter during return
+            fade = 1.0 - (u - 0.85) / 0.15
+            jitter_x = 2.5 * math.sin(2.0 * math.pi * 14.0 * elapsed) * fade
+            jitter_y = 2.0 * math.cos(2.0 * math.pi * 16.0 * elapsed) * fade
 
         self.set_target_scale(scale_val)
         self.set_target_open(open_val, open_val)
@@ -688,40 +700,44 @@ class FaceController:
         """Drowsy: eyes droop to half-closed with gentle sleepy settling wobble."""
         self.set_target_scale(DEFAULT_SCALE)
 
-        # Eye droop from 1.0 -> 0.42
-        droop_target = 0.42
-        droop_progress = smoothstep(clamp(u / 0.65, 0.0, 1.0))
+        # Eye droop from 1.0 -> 0.38
+        droop_target = 0.38
+        droop_progress = smoothstep(clamp(u / 0.70, 0.0, 1.0))
         base_open = 1.0 - (1.0 - droop_target) * droop_progress
 
+        # Settle factor ensures wobble and nod decay to zero as segment finishes
+        settle_factor = 1.0 - smoothstep(clamp((u - 0.75) / 0.25, 0.0, 1.0))
+
         # Sleepy wobble
-        wobble = 0.03 * math.sin(2.0 * math.pi * 0.55 * elapsed)
+        wobble = 0.025 * math.sin(2.0 * math.pi * 0.55 * elapsed) * settle_factor
         open_val = clamp(base_open + wobble, 0.15, 1.0)
 
         # Gentle subtle head nod
-        nod_y = 5.0 * math.sin(2.0 * math.pi * 0.45 * elapsed) * droop_progress
+        nod_y = 5.0 * math.sin(2.0 * math.pi * 0.45 * elapsed) * droop_progress * settle_factor
 
         self.target_open_left = open_val
         self.target_open_right = open_val
         self.set_target_look(0.0, nod_y)
 
     def _update_sleep(self, u: float, elapsed: float, dt: float) -> None:
-        """Sleep: eyes smoothly close completely, floating Z particles drift upward."""
+        """Sleep: smoothly glides from drowsy droop down to fully closed, floating Z particles drift."""
         self.set_target_scale(DEFAULT_SCALE)
         self.set_target_look(0.0, 0.0)
 
-        # Smooth closing in the first 1.6s
-        close_dur = 1.6
+        # Smooth closing from drowsy 0.38 baseline over the first 1.2s
+        close_dur = 1.2
         if elapsed < close_dur:
             t = elapsed / close_dur
-            open_val = 1.0 - cubic_in_out(t)
+            open_val = 0.38 * (1.0 - cubic_in_out(t))
         else:
             open_val = 0.0
 
         self.target_open_left = open_val
         self.target_open_right = open_val
 
-        # Update sleep particles
-        self.sleep_particles.update(dt, is_sleeping=True)
+        # Spawn sleep particles up to 6.5s so remaining particles clear before loop
+        is_spawning = elapsed < 6.5
+        self.sleep_particles.update(dt, is_sleeping=is_spawning)
 
         # Slower calm breathing
         self.breathing_period = 5.5

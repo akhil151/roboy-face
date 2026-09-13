@@ -390,7 +390,7 @@ def test_pairwise_distinctions() -> None:
 
 
 def test_state_boundary_transitions() -> None:
-    print("\n--- 7. State Boundary Reset Verification ---")
+    print("\n--- 7. State Boundary Reset & Continuity Verification ---")
     eye_pair = EyePair()
     timeline = TimelineController()
     controller = FaceController(eye_pair, timeline=timeline)
@@ -411,6 +411,35 @@ def test_state_boundary_transitions() -> None:
     timeline.jump_to("settle")
     controller.update(0.01)
     assert_test(len(controller.sleep_particles.particles) == 0, "Sleep particles reset when transitioning away from sleep")
+
+    # 3. Drowsy -> Sleep Continuity (No Jump)
+    timeline.jump_to("drowsy")
+    timeline.segment_elapsed = 5.0
+    controller._update_drowsy(1.0, 5.0, 0.016)
+    drowsy_end_open = controller.target_open_left
+
+    timeline.jump_to("sleep")
+    timeline.segment_elapsed = 0.0
+    controller._update_sleep(0.0, 0.0, 0.016)
+    sleep_start_open = controller.target_open_left
+
+    assert_test(
+        abs(drowsy_end_open - sleep_start_open) < 0.05,
+        f"Drowsy to Sleep transition is continuous without jump (drowsy_end={drowsy_end_open:.3f}, sleep_start={sleep_start_open:.3f})",
+    )
+
+    # 4. Zero-pop boundary guarantees (excited, happy_bounce, cute_blush)
+    timeline.jump_to("excited")
+    controller._update_excited(1.0, 4.5, 0.016)
+    assert_test(abs(controller.offset_look_y) < 1e-3, "Excited vertical bounce returns to 0.0 at segment end")
+
+    timeline.jump_to("happy_bounce")
+    controller._update_happy_bounce(1.0, 4.5, 0.016)
+    assert_test(abs(controller.offset_look_y) < 1e-3, "Happy bounce vertical offset returns to 0.0 at segment end")
+
+    timeline.jump_to("cute_blush")
+    controller._update_cute_blush(1.0, 5.0, 0.016)
+    assert_test(abs(controller.target_look_y) < 1e-3, "Cute blush gaze tilt returns to 0.0 at segment end")
 
 
 def test_full_103_second_simulation() -> None:

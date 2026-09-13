@@ -160,7 +160,7 @@ class Renderer:
         surface: pygame.Surface,
         intro_state: IntroState,
     ) -> None:
-        """Draws polished typewriter text for the intro sequence."""
+        """Draws polished typewriter text with signature pink full-stop for intro."""
         if not intro_state.text_to_show or intro_state.text_alpha <= 0.0:
             return
 
@@ -169,17 +169,45 @@ class Renderer:
             return
 
         display_str = intro_state.text_to_show
-        if intro_state.show_cursor:
-            display_str += "|"
+        show_cursor = intro_state.show_cursor
+        alpha_val = int(max(0.0, min(1.0, intro_state.text_alpha)) * 255)
 
-        text_surf = font.render(display_str, True, COLOR_TEXT)
-        if intro_state.text_alpha < 0.99:
-            text_surf.set_alpha(int(intro_state.text_alpha * 255))
+        # Signature detail: pink full-stop dot on "This is ELO."
+        if display_str.endswith("."):
+            prefix = display_str[:-1]
+            dot = "."
 
-        # Center on 800x480 canvas
-        tx = (self.width - text_surf.get_width()) // 2
-        ty = (self.height - text_surf.get_height()) // 2
-        surface.blit(text_surf, (tx, ty))
+            surf_prefix = font.render(prefix, True, COLOR_TEXT)
+            surf_dot = font.render(dot, True, self.accent_color)
+            surf_cursor = font.render("|", True, COLOR_TEXT) if show_cursor else None
+
+            w_prefix = surf_prefix.get_width()
+            w_dot = surf_dot.get_width()
+            w_cursor = surf_cursor.get_width() if surf_cursor else 0
+            total_w = w_prefix + w_dot + w_cursor
+            total_h = max(surf_prefix.get_height(), surf_dot.get_height())
+
+            tx = (self.width - total_w) // 2
+            ty = (self.height - total_h) // 2
+
+            if alpha_val < 255:
+                surf_prefix.set_alpha(alpha_val)
+                surf_dot.set_alpha(alpha_val)
+                if surf_cursor:
+                    surf_cursor.set_alpha(alpha_val)
+
+            surface.blit(surf_prefix, (tx, ty))
+            surface.blit(surf_dot, (tx + w_prefix, ty))
+            if surf_cursor:
+                surface.blit(surf_cursor, (tx + w_prefix + w_dot, ty))
+        else:
+            text_str = display_str + ("|" if show_cursor else "")
+            text_surf = font.render(text_str, True, COLOR_TEXT)
+            if alpha_val < 255:
+                text_surf.set_alpha(alpha_val)
+            tx = (self.width - text_surf.get_width()) // 2
+            ty = (self.height - text_surf.get_height()) // 2
+            surface.blit(text_surf, (tx, ty))
 
     def render_frame(
         self,
