@@ -32,7 +32,14 @@ from eye import Eye, EyePair, EyeGeometry
 from renderer import Renderer
 from animation import FaceController, BlinkState
 from timeline import TimelineController
-from effects import IntroState, BlushState, SleepZParticles, SleepZParticle
+from effects import (
+    IntroState,
+    BlushState,
+    SleepZParticles,
+    SleepZParticle,
+    ConfusedOverlayState,
+    ThinkingCloudState,
+)
 
 
 def assert_test(condition: bool, description: str) -> None:
@@ -144,6 +151,40 @@ def test_effects_blush_and_particles() -> None:
     assert_test(p.y < initial_y, "Sleep 'Z' particle drifts upward")
     assert_test(p.alpha > 0, "Sleep 'Z' particle has positive alpha")
 
+    # Confused Question-Mark Visual Accents
+    confused_overlay = ConfusedOverlayState()
+    assert_test(confused_overlay.alpha == 0.0, "Confused overlay alpha is 0.0 initially")
+    assert_test(len(confused_overlay.marks) == 3, "Confused overlay defines 3 balanced question marks")
+    confused_overlay.update(0.45, 0.10)
+    assert_test(confused_overlay.alpha > 0.0 and confused_overlay.y_offset > 0.0, "Confused overlay fades in and floats upward into position")
+    confused_overlay.update(2.25, 0.50)
+    assert_test(confused_overlay.alpha == 255.0 and confused_overlay.y_offset == 0.0, "Confused overlay reaches full opacity (255) during hold")
+    confused_overlay.update(4.275, 0.95)
+    assert_test(confused_overlay.alpha < 255.0 and confused_overlay.y_offset < 0.0, "Confused overlay fades out and floats gently upward on exit")
+    confused_overlay.update(4.50, 1.00)
+    assert_test(confused_overlay.alpha == 0.0, "Confused overlay returns to alpha 0.0 at segment completion")
+    confused_overlay.reset()
+    assert_test(confused_overlay.alpha == 0.0 and confused_overlay.elapsed == 0.0, "Confused overlay resets cleanly to 0.0")
+
+    # Thinking Minimalist Thought Cloud & Trailing Dots
+    thinking_cloud = ThinkingCloudState()
+    assert_test(thinking_cloud.cloud_scale == 0.0 and thinking_cloud.cloud_alpha == 0.0, "Thinking cloud is fully dormant initially")
+    thinking_cloud.update(0.20, 0.04)
+    assert_test(thinking_cloud.dot1_scale > 0.0 and thinking_cloud.cloud_scale == 0.0, "Thinking trailing bubble 1 emerges before main cloud")
+    thinking_cloud.update(0.50, 0.10)
+    assert_test(thinking_cloud.dot2_scale > 0.0 and thinking_cloud.cloud_scale == 0.0, "Thinking trailing bubble 2 emerges before main cloud")
+    thinking_cloud.update(0.80, 0.16)
+    assert_test(thinking_cloud.cloud_scale > 0.0 and thinking_cloud.cloud_alpha > 0.0, "Thinking main thought cloud begins emerging after bubbles")
+    thinking_cloud.update(2.50, 0.50)
+    assert_test(thinking_cloud.cloud_scale == 1.0 and thinking_cloud.cloud_alpha == 255.0, "Thinking cloud reaches full scale (1.0) and full opacity (255)")
+    assert_test(thinking_cloud.dot1_scale == 1.0 and thinking_cloud.dot2_scale == 1.0, "Thinking trailing bubbles are fully active during hold")
+    thinking_cloud.update(4.75, 0.95)
+    assert_test(thinking_cloud.cloud_alpha < 255.0, "Thinking cloud dissolves smoothly during exit phase")
+    thinking_cloud.update(5.00, 1.00)
+    assert_test(thinking_cloud.cloud_alpha == 0.0, "Thinking cloud returns to alpha 0.0 at segment completion")
+    thinking_cloud.reset()
+    assert_test(thinking_cloud.cloud_scale == 0.0 and thinking_cloud.cloud_alpha == 0.0, "Thinking cloud resets cleanly to 0.0")
+
 
 def test_emotion_behaviors() -> None:
     print("\n--- 5. All 20 Emotion Handlers & Curve Tests ---")
@@ -193,6 +234,10 @@ def test_emotion_behaviors() -> None:
     timeline.segment_elapsed = 0.8
     controller.update(0.01)
     assert_test(controller.target_look_x < -20.0 and controller.target_open_left < 0.90, "Confused shifts left with left squint")
+    assert_test(controller.confused_state.alpha > 0.0, "Confused question marks fade in during early segment")
+    timeline.segment_elapsed = 2.25
+    controller.update(0.01)
+    assert_test(controller.confused_state.alpha == 255.0, "Confused question marks reach full opacity at peak hold")
     timeline.segment_elapsed = 3.0
     controller.update(0.01)
     assert_test(controller.target_look_x > 15.0 and controller.target_open_right < 0.90, "Confused shifts right with right squint")
@@ -250,6 +295,7 @@ def test_emotion_behaviors() -> None:
     controller.update(0.01)
     assert_test(controller.target_look_y < -25.0 and controller.target_look_x > 15.0, "Thinking drifts gaze upward and sideways")
     assert_test(0.35 <= controller.target_open_left <= 0.45, "Thinking squints eyelids to ~0.40")
+    assert_test(controller.thinking_state.cloud_alpha == 255.0 and controller.thinking_state.cloud_scale == 1.0, "Thinking thought cloud is at full scale (1.0) and opacity (255) during hold")
 
     # 15. Suspicious (New)
     timeline.jump_to("suspicious")
@@ -412,7 +458,28 @@ def test_state_boundary_transitions() -> None:
     controller.update(0.01)
     assert_test(len(controller.sleep_particles.particles) == 0, "Sleep particles reset when transitioning away from sleep")
 
-    # 3. Drowsy -> Sleep Continuity (No Jump)
+    # 3. Confused -> Surprise Boundary Isolation (No Leakage)
+    timeline.jump_to("confused")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    assert_test(controller.confused_state.alpha == 255.0, "Question marks are active during confused")
+    timeline.jump_to("surprise")
+    controller.update(0.01)
+    assert_test(controller.confused_state.alpha == 0.0, "Question marks reset to 0.0 when transitioning to surprise")
+
+    # 4. Thinking -> Suspicious Boundary Isolation (No Leakage)
+    timeline.jump_to("thinking")
+    timeline.segment_elapsed = 2.5
+    controller.update(0.01)
+    assert_test(controller.thinking_state.cloud_alpha == 255.0, "Thought cloud is active during thinking")
+    timeline.jump_to("suspicious")
+    controller.update(0.01)
+    assert_test(
+        controller.thinking_state.cloud_alpha == 0.0 and controller.thinking_state.cloud_scale == 0.0,
+        "Thought cloud resets to 0.0 when transitioning to suspicious",
+    )
+
+    # 5. Drowsy -> Sleep Continuity (No Jump)
     timeline.jump_to("drowsy")
     timeline.segment_elapsed = 5.0
     controller._update_drowsy(1.0, 5.0, 0.016)
@@ -428,7 +495,11 @@ def test_state_boundary_transitions() -> None:
         f"Drowsy to Sleep transition is continuous without jump (drowsy_end={drowsy_end_open:.3f}, sleep_start={sleep_start_open:.3f})",
     )
 
-    # 4. Zero-pop boundary guarantees (excited, happy_bounce, cute_blush)
+    # 6. Zero-pop boundary guarantees (confused, excited, happy_bounce, cute_blush, thinking)
+    timeline.jump_to("confused")
+    controller._update_confused(1.0, 4.5, 0.016)
+    assert_test(controller.confused_state.alpha == 0.0, "Confused question marks alpha returns to 0.0 at segment end")
+
     timeline.jump_to("excited")
     controller._update_excited(1.0, 4.5, 0.016)
     assert_test(abs(controller.offset_look_y) < 1e-3, "Excited vertical bounce returns to 0.0 at segment end")
@@ -440,6 +511,10 @@ def test_state_boundary_transitions() -> None:
     timeline.jump_to("cute_blush")
     controller._update_cute_blush(1.0, 5.0, 0.016)
     assert_test(abs(controller.target_look_y) < 1e-3, "Cute blush gaze tilt returns to 0.0 at segment end")
+
+    timeline.jump_to("thinking")
+    controller._update_thinking(1.0, 5.0, 0.016)
+    assert_test(controller.thinking_state.cloud_alpha == 0.0, "Thinking thought cloud alpha returns to 0.0 at segment end")
 
 
 def test_full_103_second_simulation() -> None:
@@ -471,6 +546,8 @@ def test_full_103_second_simulation() -> None:
             blush_state=controller.blush_state,
             sleep_particles=controller.sleep_particles,
             intro_state=controller.intro_state if seg_name == "intro" else None,
+            confused_state=controller.confused_state,
+            thinking_state=controller.thinking_state,
         )
 
     sim_time = time.perf_counter() - start_sim

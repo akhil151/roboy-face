@@ -185,6 +185,81 @@ def add_table_data_row(tbl, col_widths, values, is_even=False, is_monospace=Fals
     return row
 
 
+def generate_all_screenshots():
+    """Generates and saves high-resolution 800x480 screenshots for all 20 emotions + intro states."""
+    print("Capturing live V3 screenshots for document generation...")
+    os.environ["SDL_VIDEODRIVER"] = "dummy"
+    import pygame
+    pygame.init()
+
+    from eye import EyePair
+    from renderer import Renderer
+    from animation import FaceController
+    from timeline import TimelineController
+    import config as cfg
+
+    os.makedirs(ASSET_DIR, exist_ok=True)
+    screen = pygame.Surface((cfg.WINDOW_WIDTH, cfg.WINDOW_HEIGHT))
+    renderer = Renderer(cfg.WINDOW_WIDTH, cfg.WINDOW_HEIGHT)
+
+    capture_targets = [
+        ("intro_hii.png", "intro", 2.0),
+        ("intro_this_is_elo.png", "intro", 6.0),
+        ("01_settle.png", "settle", 1.75),
+        ("02_blink.png", "blink", 0.95),
+        ("03_look_horizontal.png", "look_horizontal", 1.5),
+        ("04_look_vertical.png", "look_vertical", 1.5),
+        ("05_curious.png", "curious", 2.0),
+        ("06_confused.png", "confused", 2.25),
+        ("07_surprise.png", "surprise", 1.5),
+        ("08_excited.png", "excited", 2.0),
+        ("09_happy_bounce.png", "happy_bounce", 1.0),
+        ("10_wink.png", "wink", 1.5),
+        ("11_playful_double_wink.png", "playful_double_wink", 1.0),
+        ("12_shy.png", "shy", 2.0),
+        ("13_cute_blush.png", "cute_blush", 2.5),
+        ("14_thinking.png", "thinking", 2.5),
+        ("15_suspicious.png", "suspicious", 2.5),
+        ("16_angry.png", "angry", 2.5),
+        ("17_scared_nervous.png", "scared_nervous", 2.0),
+        ("18_sad.png", "sad", 2.5),
+        ("19_drowsy.png", "drowsy", 2.5),
+        ("20_sleep.png", "sleep", 3.5),
+    ]
+
+    for filename, seg_name, target_elapsed in capture_targets:
+        eye_pair = EyePair()
+        timeline = TimelineController()
+        controller = FaceController(eye_pair, timeline=timeline)
+        timeline.jump_to(seg_name)
+
+        dt = 1.0 / 60.0
+        steps = max(1, int(target_elapsed / dt))
+        for _ in range(steps):
+            controller.update(dt)
+
+        if seg_name == "sleep":
+            controller.sleep_particles.spawn()
+            for p in controller.sleep_particles.particles:
+                p.y -= 25.0
+            controller.sleep_particles.spawn()
+
+        renderer.render_frame(
+            eye_pair=eye_pair,
+            target_surface=screen,
+            face_alpha=controller.face_alpha,
+            blush_state=controller.blush_state,
+            sleep_particles=controller.sleep_particles,
+            intro_state=controller.intro_state if seg_name == "intro" else None,
+            confused_state=controller.confused_state,
+            thinking_state=controller.thinking_state,
+        )
+
+        out_path = os.path.join(ASSET_DIR, filename)
+        pygame.image.save(screen, out_path)
+        print(f"  [SAVED] {filename}")
+
+
 def build_document():
     print("Initializing ELO Face V3 Document Builder...")
     doc = Document()
@@ -623,17 +698,17 @@ def build_document():
         {
             "num": 6,
             "id": "confused",
-            "name": "Confused (Puzzled Alternating Scan)",
+            "name": "Confused (Puzzled Alternating Scan & Question-Mark Accents)",
             "file": "06_confused.png",
             "dur": "4.5s",
             "intent": "Uncertainty or failure to comprehend a command; searching for clarification.",
-            "behavior": "A hesitant, alternating two-phase scanning pattern. In Phase 1, eyes shift left (dx = -34 px) with left-eye squint (o_L = 0.82, o_R = 1.0). The gaze pauses, hesitates back toward center, then shifts puzzled to the right (dx = +38 px, dy = +8 px) with right-eye squint (o_L = 1.0, o_R = 0.82).",
+            "behavior": "A hesitant, alternating two-phase scanning pattern accompanied by signature question-mark visual accents floating above the eyes. In Phase 1, eyes shift left (dx = -34 px) with left-eye squint (o_L = 0.82, o_R = 1.0) while 3 balanced question marks fade in and float upward into position. The gaze pauses, hesitates back toward center, then shifts puzzled to the right (dx = +38 px, dy = +8 px) with right-eye squint (o_L = 1.0, o_R = 0.82) with subtle organic bobbing. At segment completion, the question marks dissolve cleanly with zero boundary leakage.",
             "params": [
+                ("Question-Mark Accents", "3 balanced marks: Center (42pt, (400, 95)), Left (30pt, (305, 115)), Right (32pt, (495, 110))"),
+                ("Visual Envelope", "Fade in & rise (u < 0.20) -> Active hold & bob (0.20-0.80) -> Fade out (u > 0.80)"),
                 ("Alternating Asymmetry", "Phase 1: o_L=0.82, o_R=1.0 | Phase 2: o_L=1.0, o_R=0.82"),
                 ("Gaze Pattern", "Left (-34 px) -> Hesitate Center -> Right (+38 px, +8 px)"),
-                ("Scale Multiplier", "1.00x"),
-                ("Phase 1 / Phase 2 Split", "u in [0.0, 0.40] / u in [0.40, 0.80]"),
-                ("Psychological Cue", "Dynamic searching hesitation vs Curious steady focus")
+                ("Boundary Isolation", "Auto-resets to alpha 0.0 before Surprise begins")
             ]
         },
         {
@@ -751,17 +826,19 @@ def build_document():
         {
             "num": 14,
             "id": "thinking",
-            "name": "Thinking (Contemplative Gaze Drift)",
+            "name": "Thinking (Contemplative Gaze Drift & Thought Cloud)",
             "file": "14_thinking.png",
             "dur": "5.0s",
             "intent": "Processing data, computing a response, recalling memory, pondering.",
-            "behavior": "Eyes cast into a thoughtful upward-and-sideways gaze drift (dx = +23.3 px, dy = -33.6 px). Eyelids narrow into a deliberate contemplative half-squint (o = 0.40) while subtle harmonic drift (4.0 px sine at 0.4 Hz) suggests active cognitive calculation.",
+            "behavior": "Eyes cast into a thoughtful upward-and-sideways gaze drift (dx = +23.3 px, dy = -33.6 px) with a minimalist geometric thought cloud floating above them performing a slow contemplative bob. Two trailing thought-bubble dots emerge first from the eye line (staggered scaling/fade-in), followed by the fluffy 6-lobe white cloud gathering at full scale and opacity. Eyelids narrow into a deliberate contemplative half-squint (o = 0.40) while subtle harmonic drift (4.0 px sine at 0.4 Hz) suggests active cognitive calculation. The cloud and bubbles dissolve cleanly at segment completion with zero boundary leakage.",
             "params": [
+                ("Thought Cloud Geometry", "6 overlapping circular lobes (base radius 22 px) centered at (475, 88)"),
+                ("Trailing Bubbles", "2 dots: lower r=4px (+38,+68), upper r=6.5px (+22,+38) relative to cloud center"),
+                ("Emergence Sequence", "Bubble 1 (u~0.02) -> Bubble 2 (u~0.06) -> Main Cloud (u~0.10) -> Hold -> Staggered dissolve"),
+                ("Floating Bob", "+/-3.0 px gentle sine float at 2.4s period during active phase"),
                 ("Eyelid Squint", "o = 0.40 (Deliberate half-squint)"),
                 ("Gaze Vector", "dx = +23.3 px, dy = -33.6 px (Up-Right)"),
-                ("Cognitive Micro-Drift", "4.0 px lateral sway at 0.4 Hz"),
-                ("Scale Multiplier", "1.00x (Neutral)"),
-                ("Distinction from Curious", "Upward drift (dy=-34 vs -10) + bilateral narrow (0.40 vs 1.0/0.82)")
+                ("Boundary Isolation", "Cloud & bubbles auto-reset to alpha 0.0 before Suspicious begins")
             ]
         },
         {
@@ -1146,8 +1223,15 @@ def build_document():
     # Save document
     doc.save(OUTPUT_DOCX)
     print(f"Document successfully created and saved to: {OUTPUT_DOCX}")
+
+    # Also save to docs directory
+    docs_docx_path = os.path.join(BASE_DIR, "docs", "ELO_Face_V3_Emotion_Reference.docx")
+    os.makedirs(os.path.dirname(docs_docx_path), exist_ok=True)
+    doc.save(docs_docx_path)
+    print(f"Document duplicate saved to: {docs_docx_path}")
     return OUTPUT_DOCX
 
 
 if __name__ == "__main__":
+    generate_all_screenshots()
     build_document()

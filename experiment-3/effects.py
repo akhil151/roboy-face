@@ -4,6 +4,8 @@ Contains:
 1. IntroState: Typewriter text ("Hii", "This is ELO.") with cursor blinking and smooth alpha fade.
 2. BlushState: Cute soft pink rounded cheek strokes with smooth opacity envelope.
 3. SleepZParticles: Floating, drifting, swaying 'Z' particles during sleep.
+4. ConfusedOverlayState: Question-mark visual accents above eyes during Confused emotion.
+5. ThinkingCloudState: Minimalist thought-cloud animation above eyes during Thinking emotion.
 """
 
 import math
@@ -20,6 +22,14 @@ from config import (
     SLEEP_SPAWN_X_MIN,
     SLEEP_SPAWN_X_MAX,
     SLEEP_SPAWN_Y,
+    CONFUSED_Q_SPECS,
+    CONFUSED_Q_BOB_AMP,
+    CONFUSED_Q_BOB_PERIOD,
+    THINKING_CLOUD_CX,
+    THINKING_CLOUD_CY,
+    THINKING_CLOUD_BASE_R,
+    THINKING_CLOUD_BOB_AMP,
+    THINKING_CLOUD_BOB_PERIOD,
 )
 from easing import clamp, smoothstep
 
@@ -204,3 +214,129 @@ class SleepZParticles:
                 self.spawn()
         else:
             self.spawn_timer = 0.0
+
+
+class ConfusedOverlayState:
+    """Manages question-mark visual accents above the eyes during Confused emotion."""
+
+    def __init__(self) -> None:
+        self.alpha: float = 0.0          # 0.0 to 255.0
+        self.elapsed: float = 0.0
+        self.marks: List[Tuple[float, float, int, float]] = list(CONFUSED_Q_SPECS)
+        self.y_offset: float = 0.0
+
+    def reset(self) -> None:
+        self.alpha = 0.0
+        self.elapsed = 0.0
+        self.y_offset = 0.0
+
+    def update(self, elapsed: float, u: float) -> None:
+        """Updates question-mark alpha and motion envelope based on segment progress u in [0, 1]."""
+        u = clamp(u, 0.0, 1.0)
+        self.elapsed = elapsed
+
+        # 3-phase envelope across 4.5s segment:
+        # 1. Entrance (u in [0.0, 0.20]): smooth fade in (0 -> 255) & upward float into position
+        # 2. Active hold (u in [0.20, 0.80]): full opacity 255, organic bobbing
+        # 3. Exit (u in [0.80, 1.00]): smooth fade out (255 -> 0) & gentle upward dissolve
+        if u < 0.20:
+            t = u / 0.20
+            self.alpha = smoothstep(t) * 255.0
+            self.y_offset = (1.0 - smoothstep(t)) * 10.0
+        elif u < 0.80:
+            self.alpha = 255.0
+            self.y_offset = 0.0
+        else:
+            t = (u - 0.80) / 0.20
+            self.alpha = (1.0 - smoothstep(t)) * 255.0
+            self.y_offset = -smoothstep(t) * 6.0
+
+
+class ThinkingCloudState:
+    """Manages minimalist thought-cloud animation above eyes during Thinking emotion."""
+
+    def __init__(self) -> None:
+        self.cloud_scale: float = 0.0    # 0.0 to 1.0
+        self.cloud_alpha: float = 0.0    # 0.0 to 255.0
+        self.dot1_scale: float = 0.0     # 0.0 to 1.0 (lower bubble)
+        self.dot1_alpha: float = 0.0     # 0.0 to 255.0
+        self.dot2_scale: float = 0.0     # 0.0 to 1.0 (upper bubble)
+        self.dot2_alpha: float = 0.0     # 0.0 to 255.0
+        self.elapsed: float = 0.0
+        self.bob_y: float = 0.0
+
+    def reset(self) -> None:
+        self.cloud_scale = 0.0
+        self.cloud_alpha = 0.0
+        self.dot1_scale = 0.0
+        self.dot1_alpha = 0.0
+        self.dot2_scale = 0.0
+        self.dot2_alpha = 0.0
+        self.elapsed = 0.0
+        self.bob_y = 0.0
+
+    def update(self, elapsed: float, u: float) -> None:
+        """Updates thought cloud and bubble elements based on segment progress u in [0, 1]."""
+        u = clamp(u, 0.0, 1.0)
+        self.elapsed = elapsed
+
+        # 1. Bubble 1 (lower, near eye): emerges earliest (u: 0.02 to 0.12), holds, fades (u: 0.80 to 0.95)
+        if u < 0.02:
+            self.dot1_scale = 0.0
+            self.dot1_alpha = 0.0
+        elif u < 0.12:
+            t = (u - 0.02) / 0.10
+            self.dot1_scale = smoothstep(t)
+            self.dot1_alpha = smoothstep(t) * 255.0
+        elif u < 0.80:
+            self.dot1_scale = 1.0
+            self.dot1_alpha = 255.0
+        elif u < 0.95:
+            t = (u - 0.80) / 0.15
+            self.dot1_scale = 1.0 - smoothstep(t)
+            self.dot1_alpha = (1.0 - smoothstep(t)) * 255.0
+        else:
+            self.dot1_scale = 0.0
+            self.dot1_alpha = 0.0
+
+        # 2. Bubble 2 (middle): emerges slightly after dot 1 (u: 0.06 to 0.16), holds, fades (u: 0.80 to 0.96)
+        if u < 0.06:
+            self.dot2_scale = 0.0
+            self.dot2_alpha = 0.0
+        elif u < 0.16:
+            t = (u - 0.06) / 0.10
+            self.dot2_scale = smoothstep(t)
+            self.dot2_alpha = smoothstep(t) * 255.0
+        elif u < 0.80:
+            self.dot2_scale = 1.0
+            self.dot2_alpha = 255.0
+        elif u < 0.96:
+            t = (u - 0.80) / 0.16
+            self.dot2_scale = 1.0 - smoothstep(t)
+            self.dot2_alpha = (1.0 - smoothstep(t)) * 255.0
+        else:
+            self.dot2_scale = 0.0
+            self.dot2_alpha = 0.0
+
+        # 3. Main Cloud: emerges after bubbles (u: 0.10 to 0.22), holds (0.22 to 0.80), dissolves (0.80 to 1.00)
+        if u < 0.10:
+            self.cloud_scale = 0.0
+            self.cloud_alpha = 0.0
+        elif u < 0.22:
+            t = (u - 0.10) / 0.12
+            self.cloud_scale = smoothstep(t)
+            self.cloud_alpha = smoothstep(t) * 255.0
+        elif u < 0.80:
+            self.cloud_scale = 1.0
+            self.cloud_alpha = 255.0
+        else:
+            t = (u - 0.80) / 0.20
+            self.cloud_scale = 1.0 - smoothstep(t) * 0.4
+            self.cloud_alpha = (1.0 - smoothstep(t)) * 255.0
+
+        # Subtle floating bob during active phase
+        if 0.10 <= u < 0.90:
+            self.bob_y = THINKING_CLOUD_BOB_AMP * math.sin(2.0 * math.pi * elapsed / THINKING_CLOUD_BOB_PERIOD)
+        else:
+            self.bob_y = 0.0
+

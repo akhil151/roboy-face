@@ -114,3 +114,25 @@ SLEEP_PARTICLE_DRIFT_FREQ: float = 0.8     # Frequency of horizontal sway (Hz)
 SLEEP_SPAWN_X_MIN: float = 580.0           # Spawn zone X min (near right eye outer side)
 SLEEP_SPAWN_X_MAX: float = 630.0           # Spawn zone X max
 SLEEP_SPAWN_Y: float = 230.0               # Spawn Y level
+
+# ---------------------------------------------------------------------------
+# Confused Question-Mark Accent Parameters
+# ---------------------------------------------------------------------------
+CONFUSED_Q_SPECS: List[Tuple[float, float, int, float]] = [
+    # (base_x, base_y, font_size, phase_offset)
+    (400.0, 95.0, 42, 0.0),         # Center main question mark (prominent)
+    (305.0, 115.0, 30, 0.8),        # Left question mark
+    (495.0, 110.0, 32, -0.8),       # Right question mark
+]
+CONFUSED_Q_BOB_AMP: float = 3.5            # Vertical bob amplitude in pixels
+CONFUSED_Q_BOB_PERIOD: float = 1.6         # Seconds per bob cycle
+
+# ---------------------------------------------------------------------------
+# Thinking Thought Cloud Parameters
+# ---------------------------------------------------------------------------
+THINKING_CLOUD_CX: float = 475.0           # Center X of thought cloud above eyes
+THINKING_CLOUD_CY: float = 88.0            # Center Y of thought cloud above eyes
+THINKING_CLOUD_BASE_R: float = 22.0        # Base radius of central cloud lobe
+THINKING_CLOUD_BOB_AMP: float = 3.0        # Gentle floating amplitude
+THINKING_CLOUD_BOB_PERIOD: float = 2.4     # Floating cycle duration (seconds)
+

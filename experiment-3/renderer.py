@@ -8,6 +8,7 @@ Renders:
 5. Real-time timeline & performance HUD overlay.
 """
 
+import math
 from typing import Tuple, Optional, Dict
 import pygame
 
@@ -21,9 +22,14 @@ from config import (
     BLUSH_WIDTH,
     BLUSH_HEIGHT,
     BLUSH_OFFSET_Y,
+    CONFUSED_Q_BOB_AMP,
+    CONFUSED_Q_BOB_PERIOD,
+    THINKING_CLOUD_CX,
+    THINKING_CLOUD_CY,
+    THINKING_CLOUD_BASE_R,
 )
 from eye import EyeGeometry, EyePair
-from effects import IntroState, BlushState, SleepZParticles
+from effects import IntroState, BlushState, SleepZParticles, ConfusedOverlayState, ThinkingCloudState
 
 
 class Renderer:
@@ -155,6 +161,102 @@ class Renderer:
             text_surf.set_alpha(p_alpha)
             surface.blit(text_surf, (int(p.x), int(p.y)))
 
+    def draw_confused_overlay(
+        self,
+        surface: pygame.Surface,
+        confused_state: ConfusedOverlayState,
+    ) -> None:
+        """Draws clean question-mark accents above eyes during Confused emotion."""
+        alpha_int = int(round(confused_state.alpha))
+        if alpha_int <= 0:
+            return
+
+        elapsed = confused_state.elapsed
+        y_offset = confused_state.y_offset
+
+        for base_x, base_y, font_size, phase_offset in confused_state.marks:
+            font = self._get_font(font_size)
+            if not font:
+                continue
+
+            # Subtle organic vertical bobbing per mark
+            bob_y = CONFUSED_Q_BOB_AMP * math.sin(2.0 * math.pi * elapsed / CONFUSED_Q_BOB_PERIOD + phase_offset)
+            target_x = base_x
+            target_y = base_y + y_offset + bob_y
+
+            text_surf = font.render("?", True, self.eye_color)
+            if alpha_int < 255:
+                text_surf.set_alpha(alpha_int)
+
+            w = text_surf.get_width()
+            h = text_surf.get_height()
+            surface.blit(text_surf, (int(target_x - w / 2.0), int(target_y - h / 2.0)))
+
+    def draw_thinking_cloud(
+        self,
+        surface: pygame.Surface,
+        thinking_state: ThinkingCloudState,
+    ) -> None:
+        """Draws minimalist thought cloud and trailing bubble elements above eyes during Thinking emotion."""
+        cloud_alpha = int(round(thinking_state.cloud_alpha))
+        dot1_alpha = int(round(thinking_state.dot1_alpha))
+        dot2_alpha = int(round(thinking_state.dot2_alpha))
+
+        if cloud_alpha <= 0 and dot1_alpha <= 0 and dot2_alpha <= 0:
+            return
+
+        cx = THINKING_CLOUD_CX
+        cy = THINKING_CLOUD_CY + thinking_state.bob_y
+        base_r = THINKING_CLOUD_BASE_R * thinking_state.cloud_scale
+
+        # 1. Trailing bubble dots (leading from right eye up towards cloud)
+        # Bubble 1 (lower, closest to eye): base offset (+38, +68) relative to (cx, cy)
+        if dot1_alpha > 0 and thinking_state.dot1_scale > 0.0:
+            d1_x = int(cx + 38.0)
+            d1_y = int(cy + 68.0)
+            d1_r = max(1, int(round(4.0 * thinking_state.dot1_scale)))
+            d1_surf = pygame.Surface((d1_r * 2 + 2, d1_r * 2 + 2), pygame.SRCALPHA)
+            pygame.draw.circle(d1_surf, (self.eye_color[0], self.eye_color[1], self.eye_color[2], dot1_alpha), (d1_r + 1, d1_r + 1), d1_r)
+            surface.blit(d1_surf, (d1_x - d1_r - 1, d1_y - d1_r - 1))
+
+        # Bubble 2 (middle): base offset (+22, +38) relative to (cx, cy)
+        if dot2_alpha > 0 and thinking_state.dot2_scale > 0.0:
+            d2_x = int(cx + 22.0)
+            d2_y = int(cy + 38.0)
+            d2_r = max(1, int(round(6.5 * thinking_state.dot2_scale)))
+            d2_surf = pygame.Surface((d2_r * 2 + 2, d2_r * 2 + 2), pygame.SRCALPHA)
+            pygame.draw.circle(d2_surf, (self.eye_color[0], self.eye_color[1], self.eye_color[2], dot2_alpha), (d2_r + 1, d2_r + 1), d2_r)
+            surface.blit(d2_surf, (d2_x - d2_r - 1, d2_y - d2_r - 1))
+
+        # 2. Main thought cloud (geometric overlapping circular lobes)
+        if cloud_alpha > 0 and base_r > 0.5:
+            # Lobes relative to cloud center: (dx, dy, radius_factor)
+            lobes = [
+                (0.0, 0.0, 1.00),         # Center main body
+                (-16.0, 3.0, 0.78),       # Left lobe
+                (16.0, 3.0, 0.78),        # Right lobe
+                (-9.0, -9.0, 0.82),       # Top-left lobe
+                (9.0, -9.0, 0.82),        # Top-right lobe
+                (0.0, 6.0, 0.70),         # Bottom fill lobe
+            ]
+
+            surf_w = int(base_r * 4.5) + 20
+            surf_h = int(base_r * 3.5) + 20
+            cloud_surf = pygame.Surface((surf_w, surf_h), pygame.SRCALPHA)
+            center_surf_x = surf_w // 2
+            center_surf_y = surf_h // 2
+
+            scale = thinking_state.cloud_scale
+            color = (self.eye_color[0], self.eye_color[1], self.eye_color[2], cloud_alpha)
+
+            for l_dx, l_dy, r_fac in lobes:
+                lx = int(center_surf_x + l_dx * scale)
+                ly = int(center_surf_y + l_dy * scale)
+                lr = max(1, int(round(base_r * r_fac)))
+                pygame.draw.circle(cloud_surf, color, (lx, ly), lr)
+
+            surface.blit(cloud_surf, (int(cx - center_surf_x), int(cy - center_surf_y)))
+
     def draw_intro_text(
         self,
         surface: pygame.Surface,
@@ -217,6 +319,8 @@ class Renderer:
         blush_state: Optional[BlushState] = None,
         sleep_particles: Optional[SleepZParticles] = None,
         intro_state: Optional[IntroState] = None,
+        confused_state: Optional[ConfusedOverlayState] = None,
+        thinking_state: Optional[ThinkingCloudState] = None,
     ) -> pygame.Surface:
         """Renders the complete layered face frame."""
         surf = target_surface or self.get_surface()
@@ -235,11 +339,19 @@ class Renderer:
             if blush_state:
                 self.draw_blush(surf, blush_state, left_geom, right_geom)
 
-            # 4. Sleep particles
+            # 4. Confused question-mark overlay above eyes
+            if confused_state:
+                self.draw_confused_overlay(surf, confused_state)
+
+            # 5. Thinking thought cloud overlay above eyes
+            if thinking_state:
+                self.draw_thinking_cloud(surf, thinking_state)
+
+            # 6. Sleep particles
             if sleep_particles:
                 self.draw_sleep_particles(surf, sleep_particles)
 
-        # 5. Intro text overlay (when active)
+        # 7. Intro text overlay (when active)
         if intro_state:
             self.draw_intro_text(surf, intro_state)
 

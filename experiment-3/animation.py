@@ -25,7 +25,7 @@ from config import (
 from easing import clamp, exp_decay, cubic_in_out, quad_out, quad_in, elastic_out, smoothstep, smootherstep
 from eye import EyePair
 from timeline import TimelineController
-from effects import IntroState, BlushState, SleepZParticles
+from effects import IntroState, BlushState, SleepZParticles, ConfusedOverlayState, ThinkingCloudState
 
 
 class BlinkState:
@@ -113,6 +113,8 @@ class FaceController:
         self.intro_state: IntroState = IntroState()
         self.blush_state: BlushState = BlushState()
         self.sleep_particles: SleepZParticles = SleepZParticles()
+        self.confused_state: ConfusedOverlayState = ConfusedOverlayState()
+        self.thinking_state: ThinkingCloudState = ThinkingCloudState()
 
         # Operational Mode
         # True = follow automated 103s timeline sequence; False = manual control
@@ -156,6 +158,12 @@ class FaceController:
 
         if old_seg in ("cute_blush", "shy") and new_seg not in ("cute_blush", "shy"):
             self.blush_state.reset()
+
+        if old_seg == "confused" and new_seg != "confused":
+            self.confused_state.reset()
+
+        if old_seg == "thinking" and new_seg != "thinking":
+            self.thinking_state.reset()
 
         if old_seg == "sleep" and new_seg != "sleep":
             self.sleep_particles.reset()
@@ -355,6 +363,8 @@ class FaceController:
 
     def _update_confused(self, u: float, elapsed: float, dt: float) -> None:
         """Confused: hesitant gaze shifting left, pausing, shifting right with alternating subtle asymmetry."""
+        self.confused_state.update(elapsed, u)
+
         max_dx = MAX_LOOK_OFFSET_X * 0.58  # ~38px
 
         if u < 0.22:
@@ -581,6 +591,8 @@ class FaceController:
 
     def _update_thinking(self, u: float, elapsed: float, dt: float) -> None:
         """Thinking: upward sideways gaze drift, thoughtful half-blink/squint."""
+        self.thinking_state.update(elapsed, u)
+
         if u < 0.2:
             t = smoothstep(u / 0.2)
             look_x = 24.0 * t

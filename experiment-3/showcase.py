@@ -153,6 +153,8 @@ def main() -> None:
                 blush_state=controller.blush_state,
                 sleep_particles=controller.sleep_particles,
                 intro_state=controller.intro_state if controller.timeline.current_name == "intro" else None,
+                confused_state=controller.confused_state,
+                thinking_state=controller.thinking_state,
             )
 
             # Render HUD if enabled
