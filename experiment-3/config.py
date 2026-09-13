@@ -1,10 +1,10 @@
 """Centralized configuration for ELO Face V3 (Experiment 3).
 
-All display, geometry, color, and animation timing constants are defined here.
+All display, geometry, color, timing, and timeline constants are defined here.
 No magic numbers should be scattered in rendering or animation logic.
 """
 
-from typing import Tuple
+from typing import Tuple, List
 
 # ---------------------------------------------------------------------------
 # Display & Canvas
@@ -18,7 +18,8 @@ TARGET_FPS: int = 60
 # ---------------------------------------------------------------------------
 COLOR_BG: Tuple[int, int, int] = (0, 0, 0)             # Pure black background
 COLOR_EYE: Tuple[int, int, int] = (255, 255, 255)       # Solid pure white eyes
-COLOR_ACCENT: Tuple[int, int, int] = (255, 182, 193)   # Soft pink for future blush accents
+COLOR_ACCENT: Tuple[int, int, int] = (255, 160, 185)   # Soft warm pink for cute blush accents
+COLOR_TEXT: Tuple[int, int, int] = (255, 255, 255)     # White intro text
 
 # ---------------------------------------------------------------------------
 # Eye Baseline Layout & Dimensions
@@ -63,3 +64,44 @@ BREATH_SCALE_AMP: float = 0.020      # Breathing scale oscillation amplitude
 SMOOTH_RATE_LOOK: float = 12.0       # Crisp yet organic gaze tracking
 SMOOTH_RATE_SCALE: float = 10.0      # Smooth scale expansion/contraction
 SMOOTH_RATE_OPEN: float = 24.0       # Responsive eyelid/squash morphing
+
+# ---------------------------------------------------------------------------
+# Stage 2 Timeline Segments (Name, Duration in Seconds)
+# Total sequence duration: 62.0 seconds
+# ---------------------------------------------------------------------------
+TIMELINE_SEGMENTS: List[Tuple[str, float]] = [
+    ("intro", 10.0),
+    ("settle", 3.5),
+    ("blink", 3.5),
+    ("look_horizontal", 5.0),
+    ("look_vertical", 4.5),
+    ("surprise", 3.5),
+    ("wink", 3.5),
+    ("playful_double_wink", 4.5),
+    ("happy_bounce", 4.5),
+    ("cute_blush", 5.0),
+    ("drowsy", 5.0),
+    ("sleep", 9.5),
+]
+
+TOTAL_TIMELINE_DURATION: float = sum(dur for _, dur in TIMELINE_SEGMENTS)
+
+# ---------------------------------------------------------------------------
+# Cute Blush Accent Parameters
+# ---------------------------------------------------------------------------
+BLUSH_WIDTH: float = 48.0            # Width of horizontal pink blush capsule
+BLUSH_HEIGHT: float = 12.0           # Height of pink blush capsule
+BLUSH_OFFSET_Y: float = 115.0        # Y offset from eye center (e.g. 240 + 115 = 355)
+BLUSH_MAX_ALPHA: int = 180           # Maximum opacity (0-255) for soft look
+
+# ---------------------------------------------------------------------------
+# Sleep Floating 'Z' Particle Parameters
+# ---------------------------------------------------------------------------
+SLEEP_PARTICLE_SPAWN_INTERVAL: float = 1.3 # Seconds between new 'Z' particles
+SLEEP_PARTICLE_LIFETIME: float = 2.8       # Lifetime of each drifting 'Z'
+SLEEP_PARTICLE_SPEED_Y: float = 42.0       # Upward velocity in pixels/second
+SLEEP_PARTICLE_DRIFT_AMP: float = 15.0     # Amplitude of horizontal sine sway
+SLEEP_PARTICLE_DRIFT_FREQ: float = 0.8     # Frequency of horizontal sway (Hz)
+SLEEP_SPAWN_X_MIN: float = 580.0           # Spawn zone X min (near right eye outer side)
+SLEEP_SPAWN_X_MAX: float = 630.0           # Spawn zone X max
+SLEEP_SPAWN_Y: float = 230.0               # Spawn Y level
