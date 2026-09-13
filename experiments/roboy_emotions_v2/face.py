@@ -31,6 +31,7 @@ class EyeSpec:
         self.rx = kw.get("rx", 0.0)
         self.ry = kw.get("ry", 0.0)
         self.lid = kw.get("lid", 0.0)          # 0..1 fraction of top covered
+        self.lid_tilt = kw.get("lid_tilt", 0.0) # signed vertical tilt (+ inner higher, - outer higher)
         # arc
         self.r = kw.get("r", 0.0)
         self.a0 = kw.get("a0", 0.0)
@@ -89,8 +90,8 @@ def eye_centers():
     return {"left": (lx, cfg.EYE_CY), "right": (rx, cfg.EYE_CY)}
 
 
-def _circle(cx, cy, r, ry=None, lid=0.0, color=None):
-    return EyeSpec("circle", cx, cy, rx=r, ry=ry if ry else r, lid=lid, color=color)
+def _circle(cx, cy, r, ry=None, lid=0.0, lid_tilt=0.0, color=None):
+    return EyeSpec("circle", cx, cy, rx=r, ry=ry if ry else r, lid=lid, lid_tilt=lid_tilt, color=color)
 
 
 def _arc(cx, cy, r, a0, a1, thickness=None, color=None):
@@ -143,16 +144,17 @@ def _excited(t, c):
 
 
 def _sad(t, c):
-    a0, a1 = math.radians(20), math.radians(160)
-    settle = anim.breathe(t, cfg.SAD_SETTLE_PERIOD, 0.012)
+    # Tired-style half-lidded foundation with sad/worried brow posture (tilted down)
+    settle = anim.breathe(t, cfg.SAD_SETTLE_PERIOD, 0.010)
+    lid = cfg.SAD_LID_BASE + cfg.SAD_LID_AMP * math.sin(2 * math.pi * t / cfg.SAD_SETTLE_PERIOD)
     eyes = [
-        _arc(c["left"][0], c["left"][1] + 0.012 + settle,
-             cfg.EYE_R * 1.02, a0, a1, cfg.EYE_THICK * 1.25),
-        _arc(c["right"][0], c["right"][1] + 0.012 + settle,
-             cfg.EYE_R * 1.02, a0, a1, cfg.EYE_THICK * 1.25),
+        _circle(c["left"][0], c["left"][1] + 0.012 + settle,
+                cfg.EYE_R * 0.98, lid=lid, lid_tilt=cfg.SAD_LID_TILT),
+        _circle(c["right"][0], c["right"][1] + 0.012 + settle,
+                cfg.EYE_R * 0.98, lid=lid, lid_tilt=-cfg.SAD_LID_TILT),
     ]
-    mouth = MouthSpec("frown", 0.5, cfg.MOUTH_CY + 0.01, cfg.MOUTH_W * 0.92,
-                      h=0.038)
+    mouth = MouthSpec("frown", 0.5, cfg.MOUTH_CY + 0.01, cfg.MOUTH_W * 0.85,
+                      h=0.030)
     return eyes, mouth
 
 
@@ -176,7 +178,7 @@ def _thinking(t, c):
         _circle(c["right"][0], c["right"][1] + gaze, cfg.EYE_R * 0.95),
     ]
     mouth = MouthSpec("capsule", 0.5, cfg.MOUTH_CY, cfg.MOUTH_W * 0.85)
-    ovs = ov.build_question(c["right"], t)
+    ovs = ov.build_thought_cloud(c["right"], t)
     return eyes, mouth, ovs
 
 
@@ -293,6 +295,19 @@ def _disgusted(t, c):
     return eyes, mouth
 
 
+def _listening(t, c):
+    # Attentive, alert, clearly open eyes focused on the user + listening waves above right eye
+    pulse = anim.breathe(t, cfg.LISTENING_PULSE_PERIOD, cfg.LISTENING_PULSE_AMP)
+    r = cfg.LISTENING_EYE_R * (1.0 + pulse)
+    eyes = [
+        _circle(c["left"][0], c["left"][1], r),
+        _circle(c["right"][0], c["right"][1], r),
+    ]
+    mouth = MouthSpec("capsule", 0.5, cfg.MOUTH_CY, cfg.MOUTH_W * 0.85)
+    ovs = ov.build_listening_waves(c["right"], t)  # anchor to right eye
+    return eyes, mouth, ovs
+
+
 # ---------------------------------------------------------------------------
 # Shape helpers
 # ---------------------------------------------------------------------------
@@ -339,6 +354,7 @@ _BUILDERS = {
     "angry": _angry,
     "fearful": _fearful,
     "disgusted": _disgusted,
+    "listening": _listening,
 }
 
 

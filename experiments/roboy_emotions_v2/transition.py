@@ -227,9 +227,12 @@ def _morph_circle_to_circle(e0: fc.EyeSpec, e1: fc.EyeSpec, u: float) -> fc.EyeS
     lid0 = getattr(e0, "lid", 0.0) or 0.0
     lid1 = getattr(e1, "lid", 0.0) or 0.0
     lid = lerp(lid0, lid1, u)
+    lid_tilt0 = getattr(e0, "lid_tilt", 0.0) or 0.0
+    lid_tilt1 = getattr(e1, "lid_tilt", 0.0) or 0.0
+    lid_tilt = lerp(lid_tilt0, lid_tilt1, u)
     thick = lerp(getattr(e0, "thickness", cfg.EYE_THICK), getattr(e1, "thickness", cfg.EYE_THICK), u)
     color = e1.color if u >= 0.5 else e0.color
-    return fc.EyeSpec("circle", cx, cy, rx=rx, ry=ry, lid=lid, thickness=thick, color=color)
+    return fc.EyeSpec("circle", cx, cy, rx=rx, ry=ry, lid=lid, lid_tilt=lid_tilt, thickness=thick, color=color)
 
 
 def _morph_arc_to_arc(e0: fc.EyeSpec, e1: fc.EyeSpec, u: float, side: str = "left") -> fc.EyeSpec:
@@ -585,7 +588,7 @@ def interpolate_mouth(m0: fc.MouthSpec, m1: fc.MouthSpec, u: float) -> fc.MouthS
 # ---------------------------------------------------------------------------
 
 def interpolate_overlays(ovs0, ovs1, u: float):
-    """Interpolate overlay cues ('?' and 'ZZZ') smoothly across transitions."""
+    """Interpolate overlay cues ('?', thought_cloud, listening_waves, and 'ZZZ') smoothly across transitions."""
     if u <= 0.0:
         return ovs0
     if u >= 1.0:
@@ -593,9 +596,34 @@ def interpolate_overlays(ovs0, ovs1, u: float):
 
     res = []
 
-    # Thinking '?'
+    # Thinking '?' (legacy) and thought_cloud (new)
     q0 = [o for o in ovs0 if o.kind == "question"]
     q1 = [o for o in ovs1 if o.kind == "question"]
+    c0 = [o for o in ovs0 if o.kind == "thought_cloud"]
+    c1 = [o for o in ovs1 if o.kind == "thought_cloud"]
+
+    # Handle thought_cloud transitions
+    if c0 and c1:
+        o0, o1 = c0[0], c1[0]
+        cx = lerp(o0.cx, o1.cx, u)
+        cy = lerp(o0.cy, o1.cy, u)
+        sz = lerp(o0.size_norm, o1.size_norm, u)
+        al = int(lerp(o0.alpha, o1.alpha, u))
+        rad = lerp(o0.radius_norm, o1.radius_norm, u)
+        res.append(ov.OverlaySpec("thought_cloud", "", cx, cy, sz, al, cfg.FACE_COLOR, rad))
+    else:
+        for o in c0:
+            al = int(o.alpha * (1.0 - u))
+            if al > 5:
+                res.append(ov.OverlaySpec(o.kind, o.text, o.cx, o.cy, o.size_norm,
+                                          al, o.color, o.radius_norm))
+        for o in c1:
+            al = int(o.alpha * u)
+            if al > 5:
+                res.append(ov.OverlaySpec(o.kind, o.text, o.cx, o.cy, o.size_norm,
+                                          al, o.color, o.radius_norm))
+
+    # Handle question mark transitions (legacy)
     if q0 and q1:
         o0, o1 = q0[0], q1[0]
         cx = lerp(o0.cx, o1.cx, u)
@@ -611,6 +639,29 @@ def interpolate_overlays(ovs0, ovs1, u: float):
                 res.append(ov.OverlaySpec(o.kind, o.text, o.cx, o.cy, o.size_norm,
                                           al, o.color, o.radius_norm))
         for o in q1:
+            al = int(o.alpha * u)
+            if al > 5:
+                res.append(ov.OverlaySpec(o.kind, o.text, o.cx, o.cy, o.size_norm,
+                                          al, o.color, o.radius_norm))
+
+    # Listening waves
+    l0 = [o for o in ovs0 if o.kind == "listening_waves"]
+    l1 = [o for o in ovs1 if o.kind == "listening_waves"]
+    if l0 and l1:
+        o0, o1 = l0[0], l1[0]
+        cx = lerp(o0.cx, o1.cx, u)
+        cy = lerp(o0.cy, o1.cy, u)
+        sz = lerp(o0.size_norm, o1.size_norm, u)
+        al = int(lerp(o0.alpha, o1.alpha, u))
+        rad = lerp(o0.radius_norm, o1.radius_norm, u)
+        res.append(ov.OverlaySpec("listening_waves", "", cx, cy, sz, al, cfg.FACE_COLOR, rad))
+    else:
+        for o in l0:
+            al = int(o.alpha * (1.0 - u))
+            if al > 5:
+                res.append(ov.OverlaySpec(o.kind, o.text, o.cx, o.cy, o.size_norm,
+                                          al, o.color, o.radius_norm))
+        for o in l1:
             al = int(o.alpha * u)
             if al > 5:
                 res.append(ov.OverlaySpec(o.kind, o.text, o.cx, o.cy, o.size_norm,

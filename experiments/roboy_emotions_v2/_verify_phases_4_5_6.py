@@ -1,19 +1,19 @@
 """ROBoy Emotion V2 - Phases 4, 5, 6 Comprehensive Verification Suite.
 
 Includes strict verification of behavior eligibility for open vs blended/non-open eyes:
- 1. All 14 static emotions remain bit-for-bit identical when behaviors are inactive.
+ 1. All 15 static emotions remain bit-for-bit identical when behaviors are inactive.
  2. Blink state machine: OPEN -> CLOSING -> CLOSED -> OPENING -> OPEN.
  3. Blink smoothness and monotonicity during closure and opening.
- 4. Blink restores exact underlying V2 geometry upon completion across all 14 emotions.
+ 4. Blink restores exact underlying V2 geometry upon completion across all 15 emotions.
  5. Happy + Gaze = DISABLED / UNCHANGED (both blended arc eyes untouched).
  6. Happy + Blink = DISABLED / UNCHANGED (both blended arc eyes untouched).
- 7. Sad + Gaze = DISABLED / UNCHANGED (both blended arc eyes untouched).
- 8. Sad + Blink = DISABLED / UNCHANGED (both blended arc eyes untouched).
+ 7. Sad + Gaze = ENABLED (both open circle eyes move symmetrically; Sad refactored to use half-lidded circle eyes).
+ 8. Sad + Blink = ENABLED (both open circle eyes close symmetrically; Sad refactored to use half-lidded circle eyes).
  9. One-open-eye + Gaze = Open eye only (e.g. Confused: left arc untouched, right circle moves).
 10. One-open-eye + Blink = Open eye only (e.g. Confused: left arc untouched, right circle blinks).
 11. Wink asymmetry preserved (left open circle gazes & blinks, right winked arc untouched).
-12. Both-open-eye + Gaze = Both eyes (Neutral, Angry, Surprised, etc. move symmetrically).
-13. Both-open-eye + Blink = Both eyes (Neutral, Angry, Surprised, etc. blink symmetrically).
+12. Both-open-eye + Gaze = Both eyes (Neutral, Angry, Surprised, Listening, etc. move symmetrically).
+13. Both-open-eye + Blink = Both eyes (Neutral, Angry, Surprised, Listening, etc. blink symmetrically).
 14. Simultaneous Emotion + Gaze + Blink on open eyes composes both offsets and lid closure.
 15. Gaze directions (CENTER, LEFT, RIGHT, UP, DOWN, diagonals) are valid and bounded.
 16. Gaze saccades are strictly smooth with bounded velocity (max step < 0.15 norm).
@@ -23,8 +23,8 @@ Includes strict verification of behavior eligibility for open vs blended/non-ope
 20. Cross-layer: Transition + Gaze (transition advances, open eye looks).
 21. Cross-layer: Transition + Blink + Gaze combined.
 22. Mid-transition interruption with active behaviors completes smoothly.
-23. Full 182-pair transition matrix regression passes (182/182 PASS).
-24. Full 182-pair curvature anomaly scan produces 0 anomalies (0/182 anomalies).
+23. Full 210-pair transition matrix regression passes (210/210 PASS).
+24. Full 210-pair curvature anomaly scan produces 0 anomalies (0/210 anomalies).
 """
 
 import copy
@@ -215,7 +215,7 @@ def run_tests():
     check("6. Happy + Blink = DISABLED (both blended arc eyes remain strictly unchanged)", happy_blink_disabled)
 
     # -----------------------------------------------------------------------
-    # Test 7: Sad + Gaze = DISABLED / UNCHANGED
+    # Test 7: Sad + Gaze = ENABLED (Sad now has open circle eyes with lids)
     # -----------------------------------------------------------------------
     ch_sad = BehaviorChoreographer(initial_emotion="sad")
     base_sad = copy.deepcopy(ch_sad.get_current_spec())
@@ -223,29 +223,32 @@ def run_tests():
     for _ in range(25):
         ch_sad.update(0.01)
     gazed_sad = ch_sad.get_current_spec()
-    sad_gaze_disabled = (
-        gazed_sad.eyes[0].cx == base_sad.eyes[0].cx and
-        gazed_sad.eyes[1].cx == base_sad.eyes[1].cx and
-        gazed_sad.eyes[0].shape == "arc" and
-        gazed_sad.eyes[1].shape == "arc"
+    # Sad now has circle eyes; both should move right when gazing right
+    sad_gaze_enabled = (
+        gazed_sad.eyes[0].cx > base_sad.eyes[0].cx and
+        gazed_sad.eyes[1].cx > base_sad.eyes[1].cx and
+        gazed_sad.eyes[0].shape == "circle" and
+        gazed_sad.eyes[1].shape == "circle"
     )
-    check("7. Sad + Gaze = DISABLED (both blended arc eyes remain strictly at baseline coords)", sad_gaze_disabled)
+    check("7. Sad + Gaze = ENABLED (both open circle eyes move symmetrically)", sad_gaze_enabled)
 
     # -----------------------------------------------------------------------
-    # Test 8: Sad + Blink = DISABLED / UNCHANGED
+    # Test 8: Sad + Blink = ENABLED (Sad now has open circle eyes with lids)
     # -----------------------------------------------------------------------
     ch_sad = BehaviorChoreographer(initial_emotion="sad")
+    base_sad_pre_blink = copy.deepcopy(ch_sad.get_current_spec())
     ch_sad.blink()
     for _ in range(8):
         ch_sad.update(0.01)
     blinked_sad = ch_sad.get_current_spec()
-    expected_sad = fc.build_face("sad", ch_sad.transition_controller.target_t)
-    sad_blink_disabled = (
-        blinked_sad.eyes[0].shape == "arc" and
-        blinked_sad.eyes[1].shape == "arc" and
-        abs(blinked_sad.eyes[0].r - expected_sad.eyes[0].r) < 1e-6
+    # Sad now has circle eyes; both should close (ry should decrease)
+    sad_blink_enabled = (
+        blinked_sad.eyes[0].shape == "circle" and
+        blinked_sad.eyes[1].shape == "circle" and
+        blinked_sad.eyes[0].ry < base_sad_pre_blink.eyes[0].ry and
+        blinked_sad.eyes[1].ry < base_sad_pre_blink.eyes[1].ry
     )
-    check("8. Sad + Blink = DISABLED (both blended arc eyes remain strictly unchanged)", sad_blink_disabled)
+    check("8. Sad + Blink = ENABLED (both open circle eyes close symmetrically)", sad_blink_enabled)
 
     # -----------------------------------------------------------------------
     # Test 9: One-Open-Eye + Gaze (e.g. Confused: Left Arc, Right Circle)
@@ -488,7 +491,7 @@ def run_tests():
         if ch.current_emotion != tgt:
             all_pairs_ok = False
             break
-    check(f"23. full 182-pair transition matrix regression passes ({len(pairs)}/182 PASS)", all_pairs_ok)
+    check(f"23. full 210-pair transition matrix regression passes ({len(pairs)}/210 PASS)", all_pairs_ok)
 
     # -----------------------------------------------------------------------
     # Test 24: Curvature Anomaly Matrix Scan
@@ -500,7 +503,7 @@ def run_tests():
         anom_l = analyze_path_anomalies(rec_l, src, tgt, side="left")
         if anom_l["has_anomaly"]:
             anomalies_count += 1
-    check(f"24. full 182-pair curvature anomaly scan produces 0 anomalies ({anomalies_count}/182 anomalies)", anomalies_count == 0)
+    check(f"24. full 210-pair curvature anomaly scan produces 0 anomalies ({anomalies_count}/210 anomalies)", anomalies_count == 0)
 
     print("=" * 80)
     for l in LOG:

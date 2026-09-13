@@ -30,9 +30,9 @@ Validates the Phase 7 Behavior Execution Engine:
 27. Deterministic replay (identical dt sequence produces identical FaceSpec geometry).
 28. Exact dt conservation (zero duplicate or lost controller advancement).
 29. Full Phase 4/5/6 regression suite (24/24 PASS).
-30. Full 182 directed transition matrix regression (182/182 PASS).
-31. Curvature anomaly scan (0/182 anomalies).
-32. Open vs blended/non-open eye behavior eligibility rules.
+30. Full 210 directed transition matrix regression (210/210 PASS).
+31. Curvature anomaly scan (0/210 anomalies).
+32. Open vs blended/non-open eye behavior eligibility rules (including Sad as open eye).
 33. Mirrored Angry geometry preservation.
 34. Wink asymmetric behavior preservation.
 """
@@ -570,7 +570,7 @@ def run_phase_7_tests():
     check("29. Phase 4/5/6 comprehensive regression suite passes (24/24 PASS)", v456_ok)
 
     # -----------------------------------------------------------------------
-    # Test 30: Full 182-Pair Directed Transition Matrix Regression
+    # Test 30: Full 210-Pair Directed Transition Matrix Regression
     # -----------------------------------------------------------------------
     pairs = [(src, tgt) for src in em.EMOTION_ORDER for tgt in em.EMOTION_ORDER if src != tgt]
     all_182_ok = True
@@ -585,10 +585,10 @@ def run_phase_7_tests():
         if eng.choreographer.current_emotion != tgt:
             all_182_ok = False
             break
-    check(f"30. full 182-pair transition matrix regression passes ({len(pairs)}/182 PASS)", all_182_ok)
+    check(f"30. full 210-pair transition matrix regression passes ({len(pairs)}/210 PASS)", all_182_ok)
 
     # -----------------------------------------------------------------------
-    # Test 31: Curvature Anomaly Matrix Scan (0/182 Anomalies)
+    # Test 31: Curvature Anomaly Matrix Scan (0/210 Anomalies)
     # -----------------------------------------------------------------------
     from _diagnose_eye_blending_path import trace_transition_path, analyze_path_anomalies
     anom_count = 0
@@ -597,7 +597,7 @@ def run_phase_7_tests():
         anom_l = analyze_path_anomalies(rec_l, src, tgt, side="left")
         if anom_l["has_anomaly"]:
             anom_count += 1
-    check(f"31. curvature anomaly matrix scan produces 0 anomalies ({anom_count}/182 anomalies)", anom_count == 0)
+    check(f"31. curvature anomaly matrix scan produces 0 anomalies ({anom_count}/210 anomalies)", anom_count == 0)
 
     # -----------------------------------------------------------------------
     # Test 32: Open vs Blended/Non-Open Eye Eligibility Rules

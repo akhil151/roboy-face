@@ -1,7 +1,7 @@
 """ROBoy Emotion V2 - emotion registry & showcase key mapping."""
 
 
-# Canonical order of the 14 V2 emotions.
+# Canonical order of the 15 V2 emotions.
 EMOTION_ORDER = [
     "neutral",
     "happy",
@@ -17,10 +17,11 @@ EMOTION_ORDER = [
     "angry",
     "fearful",
     "disgusted",
+    "listening",
 ]
 
 # Showcase keyboard mapping.
-# 1-9 cover the first nine; 0 is the extra slot; a/s/d/f cover the rest.
+# 1-9 cover the first nine; 0 is the extra slot; a/s/d/f/g cover the rest.
 KEY_MAP = {
     "1": "neutral",
     "2": "happy",
@@ -36,6 +37,7 @@ KEY_MAP = {
     "s": "angry",
     "d": "fearful",
     "f": "disgusted",
+    "g": "listening",
 }
 
 # Reverse lookup for printing the active mapping.
@@ -48,7 +50,7 @@ def emotion_for_key(key):
 
 def mapping_lines():
     lines = []
-    for key in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "a", "s", "d", "f"]:
+    for key in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "a", "s", "d", "f", "g"]:
         lines.append(f"  {key.upper()}  -> {KEY_MAP[key]}")
     return lines
 
@@ -58,9 +60,9 @@ DESCRIPTIONS = {
     "neutral": "calm default - round open eyes, soft line mouth",
     "happy": "upward eye arcs, smiling mouth",
     "excited": "wide round open eyes, wide open smile",
-    "sad": "downward eye arcs, frowning mouth",
+    "sad": "downward-tilted heavy lids, subdued expression",
     "surprised": "wide open eyes, open mouth",
-    "thinking": "gaze + perimeter '?' cue",
+    "thinking": "gaze + thought cloud cue",
     "confused": "asymmetric eyes, uneven mouth",
     "wink": "one open eye, one closed, playful smile",
     "love": "heart eyes, soft smile",
@@ -69,4 +71,5 @@ DESCRIPTIONS = {
     "angry": "slanted angry eye geometry, flat closed mouth",
     "fearful": "wide uneasy eyes, nervous mouth",
     "disgusted": "narrowed uneven eyes, curled mouth",
+    "listening": "attentive open eyes, alert brows, listening waves",
 }

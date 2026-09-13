@@ -336,19 +336,19 @@ def test_12_thinking_question():
     s_think = fc.build_face("thinking", 0.0)
 
     spec_mid = tr.interpolate_face(s_neut, s_think, 0.5)
-    qs = [o for o in spec_mid.overlays if o.kind == "question"]
-    ok_fade_in = len(qs) == 1 and qs[0].alpha > 0 and qs[0].cx > 0.5
+    clouds = [o for o in spec_mid.overlays if o.kind == "thought_cloud"]
+    ok_fade_in = len(clouds) == 1 and clouds[0].alpha > 0 and clouds[0].cx > 0.5
 
     spec_out = tr.interpolate_face(s_think, s_neut, 0.8)
-    qs_out = [o for o in spec_out.overlays if o.kind == "question"]
-    ok_fade_out = len(qs_out) == 1 and qs_out[0].alpha < s_think.overlays[0].alpha
+    clouds_out = [o for o in spec_out.overlays if o.kind == "thought_cloud"]
+    ok_fade_out = len(clouds_out) == 1 and clouds_out[0].alpha < s_think.overlays[0].alpha
 
     s_conf = fc.build_face("confused", 0.0)
     spec_tc = tr.interpolate_face(s_think, s_conf, 0.5)
-    qs_tc = [o for o in spec_tc.overlays if o.kind == "question"]
-    ok_persist = len(qs_tc) == 1 and finite(qs_tc[0].cx, qs_tc[0].cy)
+    clouds_tc = [o for o in spec_tc.overlays if o.kind == "thought_cloud"]
+    ok_persist = len(clouds_tc) == 1 and finite(clouds_tc[0].cx, clouds_tc[0].cy)
 
-    check("12. thinking '?' remains valid, clear of eyes, and transitions smoothly", ok_fade_in and ok_fade_out and ok_persist)
+    check("12. thinking cloud remains valid, clear of eyes, and transitions smoothly", ok_fade_in and ok_fade_out and ok_persist)
 
 
 def test_13_sleepy_zzz():

@@ -5,6 +5,8 @@ using the supplied :class:`geometry.Transform`. No production code is touched;
 this is a fully isolated prototype renderer.
 """
 
+import pygame
+
 import config as cfg
 import geometry as g
 from face import EyeSpec, MouthSpec
@@ -23,15 +25,29 @@ def draw_eye(surf, tf, e: EyeSpec):
     if e.shape == "circle":
         g.fill_circle(surf, tf, e.cx, e.cy, e.rx, e.ry, color)
         if e.lid > 0.0:
-            # heavy eyelid: paint the top fraction black (matches bg)
-            px, py = tf.pt(e.cx, e.cy)
-            rxp = tf.s(e.rx)
-            ryp = tf.s(e.ry)
-            x = int(px - rxp)
-            y = int(py - ryp)
-            h = int(ryp * 2 * e.lid)
-            w = int(rxp * 2)
-            pygame_draw_rect(surf, x, y, w, h)
+            lid_tilt = getattr(e, "lid_tilt", 0.0) or 0.0
+            if abs(lid_tilt) > 1e-4:
+                # Angled eyelid for expressive sad/worried brow posture
+                y_cut = e.cy - e.ry + 2.0 * e.ry * e.lid
+                y_left = y_cut + e.ry * lid_tilt
+                y_right = y_cut - e.ry * lid_tilt
+                pts = [
+                    (e.cx - e.rx * 1.5, e.cy - e.ry * 1.5),
+                    (e.cx + e.rx * 1.5, e.cy - e.ry * 1.5),
+                    (e.cx + e.rx * 1.5, y_right),
+                    (e.cx - e.rx * 1.5, y_left),
+                ]
+                g.poly_fill(surf, tf, pts, cfg.BG_COLOR)
+            else:
+                # Flat heavy eyelid
+                px, py = tf.pt(e.cx, e.cy)
+                rxp = tf.s(e.rx)
+                ryp = tf.s(e.ry)
+                x = int(px - rxp)
+                y = int(py - ryp)
+                h = int(ryp * 2 * e.lid)
+                w = int(rxp * 2)
+                pygame_draw_rect(surf, x, y, w, h)
     elif e.shape == "arc":
         g.thick_arc(surf, tf, e.cx, e.cy, e.r, e.a0, e.a1, e.thickness, color)
     elif e.shape == "sleepy_u":
@@ -51,7 +67,6 @@ def draw_eye(surf, tf, e: EyeSpec):
 
 
 def pygame_draw_rect(surf, x, y, w, h):
-    import pygame
     pygame.draw.rect(surf, cfg.BG_COLOR, (x, y, w, h))
 
 
@@ -101,7 +116,33 @@ def draw_mouth(surf, tf, m: MouthSpec):
 
 def draw_overlay(surf, tf, o):
     color = o.color if o.color is not None else cfg.FACE_COLOR
-    g.draw_text(surf, tf, o.text, o.cx, o.cy, o.size_norm, color, o.alpha)
+    if o.kind == "thought_cloud" and getattr(o, "lobes", None):
+        w_px = max(16, int(tf.s(o.size_norm * 3.0)))
+        h_px = max(16, int(tf.s(o.size_norm * 3.0)))
+        cloud_surf = pygame.Surface((w_px, h_px), pygame.SRCALPHA)
+        sub_tf = g.Transform(w_px / 2.0, h_px / 2.0, tf.size)
+        c_rgba = (color[0], color[1], color[2], 255)
+        for rx, ry, rad in o.lobes:
+            g.fill_circle(cloud_surf, sub_tf, rx, ry, rad, rad, c_rgba)
+        if getattr(o, "dots", None):
+            for rx, ry, rad in o.dots:
+                g.fill_circle(cloud_surf, sub_tf, rx, ry, rad, rad, c_rgba)
+        cloud_surf.set_alpha(int(o.alpha))
+        px, py = tf.pt(o.cx, o.cy)
+        surf.blit(cloud_surf, (int(px - w_px / 2.0), int(py - h_px / 2.0)))
+    elif o.kind == "listening_waves" and getattr(o, "arcs", None):
+        w_px = max(16, int(tf.s(o.radius_norm * 2.8)))
+        h_px = max(16, int(tf.s(o.radius_norm * 2.8)))
+        wave_surf = pygame.Surface((w_px, h_px), pygame.SRCALPHA)
+        sub_tf = g.Transform(w_px / 2.0, h_px / 2.0, tf.size)
+        for arc in o.arcs:
+            c_rgba = (color[0], color[1], color[2], arc.get("alpha", 255))
+            g.thick_arc(wave_surf, sub_tf, 0.0, 0.0, arc["r"], arc["a0"], arc["a1"],
+                        arc.get("thickness", cfg.EYE_THICK), c_rgba)
+        px, py = tf.pt(o.cx, o.cy)
+        surf.blit(wave_surf, (int(px - w_px / 2.0), int(py - h_px / 2.0)))
+    else:
+        g.draw_text(surf, tf, o.text, o.cx, o.cy, o.size_norm, color, o.alpha)
 
 
 def render(surf, spec, tf):

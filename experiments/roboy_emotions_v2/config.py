@@ -54,7 +54,7 @@ BLINK_DURATION = 0.13        # seconds the blink takes (close + open)
 BLINK_DEPTH = 0.85           # how strongly the eye squashes vertically
 
 # ---------------------------------------------------------------------------
-# Thinking "?" overlay
+# Thinking "?" / Thought cloud overlay
 # ---------------------------------------------------------------------------
 Q_EYE_SIDE = "right"     # which eye the ? relates to ("left" / "right")
 Q_DIST = 0.155           # distance of ? centre from the eye centre (normalized)
@@ -64,6 +64,38 @@ Q_BOB_AMP = 0.012        # subtle vertical bob amplitude (normalized)
 Q_BOB_PERIOD = 3.2       # seconds for one bob cycle
 Q_FADE_PERIOD = 4.0      # seconds for one fade-in / fade-out cycle
 Q_FADE_MIN = 120         # minimum alpha (0..255) at the dimmest point
+
+CLOUD_EYE_SIDE = "right"
+CLOUD_DIST = 0.155
+CLOUD_ANGLE_DEG = 52.0
+CLOUD_SIZE = 0.14          # increased from 0.086 for more prominence
+CLOUD_BOB_AMP = 0.025      # stronger bob for clearly visible motion (was 0.018)
+CLOUD_BOB_PERIOD = 3.2
+CLOUD_FADE_PERIOD = 4.0
+CLOUD_FADE_MIN = 120
+CLOUD_CYCLE = 4.5          # full grow/fade cycle (seconds)
+CLOUD_GROW_PHASE = 1.2     # dot grows to cloud—EXTENDED for more visible emergence (was 1.0)
+CLOUD_PEAK_PHASE = 1.2     # cloud at full size—SHORTENED to show fade sooner (was 1.5)
+CLOUD_FADE_PHASE = 2.1     # cloud fades—EXTENDED for perceptible fade (was 2.0)
+CLOUD_ALPHA_MIN = 60       # minimum alpha during fade (makes fade more visible)
+
+# ---------------------------------------------------------------------------
+# Listening overlay & eyes
+# ---------------------------------------------------------------------------
+LISTENING_EYE_R = 0.076          # attentive, slightly open/alert eyes (cfg.EYE_R * ~1.05)
+LISTENING_PULSE_PERIOD = 3.2
+LISTENING_PULSE_AMP = 0.018
+LISTENING_WAVES_EYE_SIDE = "right"    # anchor to right eye (like Thinking cloud and Sleepy Z)
+LISTENING_WAVES_DIST = 0.140           # distance from right eye center to signal origin (upper-right)
+LISTENING_WAVES_ANGLE_DEG = 48.0       # angle upward from horizontal (matches ZZZ aesthetic)
+LISTENING_WAVES_ANGLE_TILT = 12.0      # rightward tilt (degrees, subtle rotation toward right)
+LISTENING_WAVES_R0 = 0.035             # inner radius of first arc
+LISTENING_WAVES_SPACING = 0.020        # spacing between arc radii
+LISTENING_WAVES_SPAN_DEG = 90.0        # upward curved arc spread (90 deg = full semicircle)
+LISTENING_WAVES_PERIOD = 2.4           # ripple / pulse animation cycle
+LISTENING_WAVES_THICK = 0.011          # stroke thickness for listening arcs
+LISTENING_WAVES_FADE_PERIOD = 3.0      # fade/pulse cycle (seconds)
+LISTENING_WAVES_ALPHA_RANGE = (80, 220)  # (min, max) alpha for fade envelope—INCREASED visibility (was implicit)
 
 # ---------------------------------------------------------------------------
 # Sleepy "ZZZ" overlay
@@ -92,6 +124,9 @@ HEART_SCALE = 1.45        # heart size relative to EYE_R
 # Per-emotion animation knobs (kept here, not scattered in builders)
 # ---------------------------------------------------------------------------
 SAD_SETTLE_PERIOD = 6.5
+SAD_LID_BASE = 0.44
+SAD_LID_TILT = 0.16       # eyelid tilt: inner corner higher, outer corner lower
+SAD_LID_AMP = 0.04        # gentle settle modulation of lid
 TIRED_LID_BASE = 0.42     # baseline fraction of the eye covered by the lid
 TIRED_LID_AMP = 0.10      # slow oscillation of the lid
 TIRED_LID_PERIOD = 7.0

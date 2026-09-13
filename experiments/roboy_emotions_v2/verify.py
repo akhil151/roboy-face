@@ -102,7 +102,7 @@ def test_build_render():
             ok_all = False
             check(f"build+render {name}", False, f"exception: {ex!r}")
     if ok_all:
-        check("all 14 emotions build + render", True)
+        check("all 15 emotions build + render", True)
 
 
 # ---------------------------------------------------------------------------
