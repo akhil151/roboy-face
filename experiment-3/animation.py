@@ -1,6 +1,6 @@
 """Organic animation, state controller, and emotion sequencer for ELO Face V3.
 
-Coordinates smooth parameter transitions, the 12-segment 62-second automated
+Coordinates smooth parameter transitions, the 21-segment 103-second automated
 timeline experience, breathing micro-motion, and interactive overrides.
 """
 
@@ -115,7 +115,7 @@ class FaceController:
         self.sleep_particles: SleepZParticles = SleepZParticles()
 
         # Operational Mode
-        # True = follow automated 62s timeline sequence; False = manual control
+        # True = follow automated 103s timeline sequence; False = manual control
         self.timeline_driven: bool = True
         self.face_alpha: float = 1.0
 

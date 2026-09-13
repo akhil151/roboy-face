@@ -1,6 +1,6 @@
 """Data-driven animation timeline sequencer for ELO Face V3.
 
-Manages the 12-segment 62-second automated emotion experience.
+Manages the 21-segment 103-second automated emotion experience.
 Allows smooth automatic progression, looping, manual segment jumping,
 and pause/resume controls.
 """
@@ -60,7 +60,7 @@ class TimelineController:
 
     @property
     def overall_progress(self) -> float:
-        """Normalized progress of the entire 62-second loop in [0.0, 1.0]."""
+        """Normalized progress of the entire 103-second loop in [0.0, 1.0]."""
         if self.total_duration <= 0.0:
             return 0.0
         return clamp(self.total_elapsed / self.total_duration, 0.0, 1.0)

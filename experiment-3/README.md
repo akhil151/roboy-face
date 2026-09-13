@@ -31,7 +31,7 @@ The system plays a synchronized 103.0-second automated sequence across 21 distin
 | 17 | `angry` | 4.5s | High horizontal squash into narrow slits ($o=0.30$), compact scale ($0.94\times$), locked downward focus, tension pulsing ($5\text{ Hz}$) |
 | 18 | `scared_nervous` | 4.5s | Rapid elastic scale expansion ($1.28\times$) combined with high-frequency micro-tremor jitter ($14\text{ Hz}$) |
 | 19 | `sad` | 5.0s | Deflated scale ($0.94\times$), heavy downward gaze ($dy=+34$), melancholic eyelid droop ($o=0.52$), sluggish breathing |
-| 20 | `drowsy` | 5.0s | Eyelids droop to half-closed ($o \approx 0.42$) with gentle sleepy wobble & head nod |
+| 20 | `drowsy` | 5.0s | Eyelids droop to half-closed ($o \approx 0.38$) with gentle sleepy wobble & head nod |
 | 21 | `sleep` | 9.0s | Eyes smoothly close ($o = 0.0$), floating 'Z' particles drift upward with sine sway |
 | — | `loop` | — | Automatically loops back to segment 1 seamlessly |
 
@@ -52,7 +52,7 @@ The system plays a synchronized 103.0-second automated sequence across 21 distin
   - *Angry vs. Suspicious:* Angry narrows severely ($o = 0.30$) with compact scale; Suspicious narrows moderately ($o = 0.48$) with heavy lateral side-eye ($dx = +50$).
   - *Surprise vs. Scared/Nervous:* Surprise has a clean, wide, motionless gaze; Scared/Nervous adds high-frequency tremor jitter.
   - *Shy vs. Sad:* Shy glances sideways/down with soft blush accent; Sad gazes straight down with deflated scale and no blush.
-  - *Drowsy vs. Sad:* Drowsy droops eyes to $0.42$ with nodding wobble at normal scale; Sad droops to $0.52$ with heavier downward gaze and deflated scale.
+  - *Drowsy vs. Sad:* Drowsy droops eyes to $0.38$ with nodding wobble at normal scale; Sad droops to $0.52$ with heavier downward gaze and deflated scale.
 
 ---
 

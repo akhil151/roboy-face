@@ -140,7 +140,7 @@ def main() -> None:
                     elif event.key in segment_keys:
                         seg_idx = segment_keys[event.key]
                         controller.timeline.jump_to(seg_idx)
-                        print(f"Jumped to segment [{seg_idx + 1}/12]: {controller.timeline.current_name}")
+                        print(f"Jumped to segment [{seg_idx + 1}/{len(controller.timeline.segments)}]: {controller.timeline.current_name}")
 
             # Update controller & timeline
             controller.update(dt)

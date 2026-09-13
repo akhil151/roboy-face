@@ -284,7 +284,7 @@ def test_emotion_behaviors() -> None:
     timeline.jump_to("drowsy")
     timeline.segment_elapsed = 3.5
     controller.update(0.01)
-    assert_test(0.35 <= controller.target_open_left <= 0.50, "Drowsy droops eyes to ~0.42")
+    assert_test(0.35 <= controller.target_open_left <= 0.50, "Drowsy droops eyes to ~0.38")
 
     # 20. Sleep
     timeline.jump_to("sleep")
