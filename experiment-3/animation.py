@@ -22,7 +22,7 @@ from config import (
     MAX_SCALE,
     DEFAULT_SCALE,
 )
-from easing import clamp, exp_decay, cubic_in_out, quad_out, smoothstep, smootherstep
+from easing import clamp, exp_decay, cubic_in_out, quad_out, quad_in, elastic_out, smoothstep, smootherstep
 from eye import EyePair
 from timeline import TimelineController
 from effects import IntroState, BlushState, SleepZParticles
@@ -77,9 +77,8 @@ class FaceController:
         timeline: Optional[TimelineController] = None,
     ) -> None:
         self.eye_pair: EyePair = eye_pair or EyePair()
-        self.timeline: TimelineController = timeline or TimelineController(
-            on_segment_change=self._on_segment_changed
-        )
+        self.timeline: TimelineController = timeline or TimelineController()
+        self.timeline.on_segment_change = self._on_segment_changed
 
         # Continuous interpolated state parameters
         self.current_open_left: float = 1.0
@@ -127,11 +126,20 @@ class FaceController:
             "blink": self._update_blink,
             "look_horizontal": self._update_look_horizontal,
             "look_vertical": self._update_look_vertical,
+            "curious": self._update_curious,
+            "confused": self._update_confused,
             "surprise": self._update_surprise,
+            "excited": self._update_excited,
+            "happy_bounce": self._update_happy_bounce,
             "wink": self._update_wink,
             "playful_double_wink": self._update_playful_double_wink,
-            "happy_bounce": self._update_happy_bounce,
+            "shy": self._update_shy,
             "cute_blush": self._update_cute_blush,
+            "thinking": self._update_thinking,
+            "suspicious": self._update_suspicious,
+            "angry": self._update_angry,
+            "scared_nervous": self._update_scared_nervous,
+            "sad": self._update_sad,
             "drowsy": self._update_drowsy,
             "sleep": self._update_sleep,
         }
@@ -146,12 +154,15 @@ class FaceController:
             self.intro_state.reset()
             self.face_alpha = 1.0
 
-        if old_seg == "cute_blush" and new_seg != "cute_blush":
+        if old_seg in ("cute_blush", "shy") and new_seg not in ("cute_blush", "shy"):
             self.blush_state.reset()
 
         if old_seg == "sleep" and new_seg != "sleep":
             self.sleep_particles.reset()
+
+        if old_seg in ("sleep", "sad") and new_seg not in ("sleep", "sad"):
             self.breathing_period = BREATH_PERIOD
+            self.breathing_amp = BREATH_SCALE_AMP
 
         self.offset_look_x = 0.0
         self.offset_look_y = 0.0
@@ -302,6 +313,90 @@ class FaceController:
 
         self.set_target_look(0.0, look_y)
 
+    def _update_curious(self, u: float, elapsed: float, dt: float) -> None:
+        """Curious: gaze shifts inquisitively to one side with subtle eye asymmetry and micro-inspection."""
+        max_dx = MAX_LOOK_OFFSET_X * 0.65  # ~42px
+        target_dy = -10.0
+
+        if u < 0.25:
+            # Gaze shifts right & slight up, right eye subtly squints
+            t = u / 0.25
+            look_x = max_dx * cubic_in_out(t)
+            look_y = target_dy * cubic_in_out(t)
+            open_r = 1.0 - (1.0 - 0.82) * quad_out(t)
+            scale = DEFAULT_SCALE + 0.04 * quad_out(t)
+        elif u < 0.60:
+            # Inquisitive hold with subtle micro-inspection adjustment
+            micro_x = 3.5 * math.sin(2.0 * math.pi * 1.5 * elapsed)
+            micro_y = 2.0 * math.cos(2.0 * math.pi * 1.5 * elapsed)
+            look_x = max_dx + micro_x
+            look_y = target_dy + micro_y
+            open_r = 0.82
+            scale = DEFAULT_SCALE + 0.04
+        elif u < 0.78:
+            # Closer inspection nod
+            t = (u - 0.60) / 0.18
+            look_x = max_dx + 8.0 * smoothstep(t)
+            look_y = target_dy + 4.0 * smoothstep(t)
+            open_r = 0.82 + 0.08 * smoothstep(t)
+            scale = DEFAULT_SCALE + 0.04
+        else:
+            # Smooth return to center
+            t = (u - 0.78) / 0.22
+            look_x = (max_dx + 8.0) * (1.0 - cubic_in_out(t))
+            look_y = (target_dy + 4.0) * (1.0 - cubic_in_out(t))
+            open_r = 0.90 + 0.10 * quad_out(t)
+            scale = (DEFAULT_SCALE + 0.04) - 0.04 * cubic_in_out(t)
+
+        self.set_target_look(look_x, look_y)
+        self.set_target_scale(scale)
+        self.target_open_left = 1.0
+        self.target_open_right = open_r
+
+    def _update_confused(self, u: float, elapsed: float, dt: float) -> None:
+        """Confused: hesitant gaze shifting left, pausing, shifting right with alternating subtle asymmetry."""
+        max_dx = MAX_LOOK_OFFSET_X * 0.58  # ~38px
+
+        if u < 0.22:
+            # Look left, left eye slightly squints
+            t = u / 0.22
+            look_x = -max_dx * cubic_in_out(t)
+            look_y = -6.0 * cubic_in_out(t)
+            open_l = 1.0 - 0.18 * quad_out(t)
+            open_r = 1.0
+        elif u < 0.40:
+            # Hesitates back toward center
+            t = (u - 0.22) / 0.18
+            look_x = -max_dx + (max_dx - 10.0) * cubic_in_out(t)
+            look_y = -6.0 * (1.0 - t)
+            open_l = 0.82 + 0.18 * quad_out(t)
+            open_r = 1.0
+        elif u < 0.65:
+            # Shifts puzzled to the right, right eye squints
+            t = (u - 0.40) / 0.25
+            look_x = -10.0 + (max_dx + 10.0) * cubic_in_out(t)
+            look_y = 8.0 * cubic_in_out(t)
+            open_l = 1.0
+            open_r = 1.0 - 0.18 * quad_out(t)
+        elif u < 0.80:
+            # Puzzled hold
+            look_x = max_dx
+            look_y = 8.0
+            open_l = 1.0
+            open_r = 0.82
+        else:
+            # Smooth resolution back to neutral
+            t = (u - 0.80) / 0.20
+            look_x = max_dx * (1.0 - cubic_in_out(t))
+            look_y = 8.0 * (1.0 - cubic_in_out(t))
+            open_l = 1.0
+            open_r = 0.82 + 0.18 * quad_out(t)
+
+        self.set_target_look(look_x, look_y)
+        self.set_target_scale(DEFAULT_SCALE)
+        self.target_open_left = open_l
+        self.target_open_right = open_r
+
     def _update_surprise(self, u: float, elapsed: float, dt: float) -> None:
         """Big eyes surprise reaction: fast smooth growth -> hold -> return."""
         self.set_target_open(1.0, 1.0)
@@ -321,6 +416,32 @@ class FaceController:
             # Smoothly settle back down
             t = (u - 0.65) / 0.35
             scale_val = peak_scale - (peak_scale - DEFAULT_SCALE) * cubic_in_out(t)
+
+        self.set_target_scale(scale_val)
+
+    def _update_excited(self, u: float, elapsed: float, dt: float) -> None:
+        """Excited: rapid scale burst, energetic vertical bouncing with pulsing scale."""
+        self.set_target_open(1.0, 1.0)
+        self.set_target_look(0.0, -4.0)
+
+        # Scale burst to 1.25, layered with energetic bounce
+        if u < 0.15:
+            t = u / 0.15
+            scale_val = DEFAULT_SCALE + 0.25 * quad_out(t)
+            self.offset_look_y = 0.0
+        elif u < 0.75:
+            # High-energy bounce (3.2 Hz) + scale pulsation
+            t_bounce = elapsed - (0.15 * 4.5)
+            freq = 3.2
+            decay = math.exp(-0.45 * t_bounce)
+            bounce = -24.0 * decay * abs(math.sin(2.0 * math.pi * freq * t_bounce))
+            pulse = 0.06 * decay * math.cos(2.0 * math.pi * freq * t_bounce)
+            scale_val = 1.22 + pulse
+            self.offset_look_y = bounce
+        else:
+            t = (u - 0.75) / 0.25
+            scale_val = 1.22 - 0.22 * cubic_in_out(t)
+            self.offset_look_y = 0.0
 
         self.set_target_scale(scale_val)
 
@@ -386,6 +507,46 @@ class FaceController:
         self.target_open_left = left_open
         self.target_open_right = right_open
 
+    def _update_shy(self, u: float, elapsed: float, dt: float) -> None:
+        """Shy: bashful downward/side glance, gentle eyelid droop, and subtle low-alpha blush."""
+        if u < 0.25:
+            t = u / 0.25
+            look_x = -22.0 * cubic_in_out(t)
+            look_y = 28.0 * cubic_in_out(t)
+            open_val = 1.0 - 0.35 * quad_out(t)  # Droops to 0.65
+            scale_val = DEFAULT_SCALE - 0.04 * quad_out(t)
+            blush_alpha = 70.0 * quad_out(t)
+        elif u < 0.65:
+            # Bashful hold with gentle micro-repositioning
+            micro_x = 2.5 * math.sin(2.0 * math.pi * 0.8 * elapsed)
+            micro_y = 1.5 * math.cos(2.0 * math.pi * 0.8 * elapsed)
+            look_x = -22.0 + micro_x
+            look_y = 28.0 + micro_y
+            open_val = 0.65
+            scale_val = DEFAULT_SCALE - 0.04
+            blush_alpha = 70.0
+        elif u < 0.82:
+            # Shy peek upward slightly
+            t = (u - 0.65) / 0.17
+            look_x = -22.0 + 10.0 * smoothstep(t)
+            look_y = 28.0 - 12.0 * smoothstep(t)
+            open_val = 0.65 + 0.13 * smoothstep(t)
+            scale_val = DEFAULT_SCALE - 0.04 + 0.02 * smoothstep(t)
+            blush_alpha = 70.0 - 40.0 * smoothstep(t)
+        else:
+            # Smoothly return to neutral
+            t = (u - 0.82) / 0.18
+            look_x = -12.0 * (1.0 - cubic_in_out(t))
+            look_y = 16.0 * (1.0 - cubic_in_out(t))
+            open_val = 0.78 + 0.22 * quad_out(t)
+            scale_val = 0.98 + 0.02 * quad_out(t)
+            blush_alpha = 30.0 * (1.0 - t)
+
+        self.set_target_look(look_x, look_y)
+        self.set_target_open(open_val, open_val)
+        self.set_target_scale(scale_val)
+        self.blush_state.alpha = blush_alpha
+
     def _update_happy_bounce(self, u: float, elapsed: float, dt: float) -> None:
         """Happy bounce: vertical rhythmic hopping with decaying amplitude."""
         self.set_target_open(1.0, 1.0)
@@ -410,6 +571,118 @@ class FaceController:
         self.set_target_open(0.92, 0.92)
         self.set_target_scale(1.04)
         self.set_target_look(0.0, -5.0 * smoothstep(u))
+
+    def _update_thinking(self, u: float, elapsed: float, dt: float) -> None:
+        """Thinking: upward sideways gaze drift, thoughtful half-blink/squint."""
+        if u < 0.2:
+            t = smoothstep(u / 0.2)
+            look_x = 24.0 * t
+            look_y = -34.0 * t
+            open_val = 1.0 - 0.60 * t  # squints to 0.40
+        elif u < 0.8:
+            # Contemplative hold with subtle drift
+            drift = 4.0 * math.sin(2.0 * math.pi * 0.4 * elapsed)
+            look_x = 24.0 + drift
+            look_y = -34.0 - drift * 0.5
+            open_val = 0.40
+        else:
+            t = smoothstep((u - 0.8) / 0.2)
+            look_x = (24.0 + 4.0 * math.sin(2.0 * math.pi * 0.4 * elapsed)) * (1.0 - t)
+            look_y = (-34.0 - 2.0 * math.sin(2.0 * math.pi * 0.4 * elapsed)) * (1.0 - t)
+            open_val = 0.40 + 0.60 * t
+
+        self.set_target_look(look_x, look_y)
+        self.set_target_open(open_val, open_val)
+
+    def _update_suspicious(self, u: float, elapsed: float, dt: float) -> None:
+        """Suspicious: deliberate slow sideways side-eye displacement (dx=+50), moderate narrow."""
+        if u < 0.3:
+            t = quad_out(u / 0.3)
+            look_x = 50.0 * t
+            look_y = 5.0 * t
+            open_val = 1.0 - 0.52 * t  # narrows to 0.48
+        elif u < 0.75:
+            # Skeptical hold
+            look_x = 50.0
+            look_y = 5.0
+            open_val = 0.48
+        else:
+            t = smoothstep((u - 0.75) / 0.25)
+            look_x = 50.0 * (1.0 - t)
+            look_y = 5.0 * (1.0 - t)
+            open_val = 0.48 + 0.52 * t
+
+        self.set_target_look(look_x, look_y)
+        self.set_target_open(open_val, open_val)
+
+    def _update_angry(self, u: float, elapsed: float, dt: float) -> None:
+        """Angry: strong horizontal compression into narrow slits, focused downward hold, tension pulsing."""
+        if u < 0.2:
+            t = cubic_in_out(u / 0.2)
+            open_val = 1.0 - 0.70 * t  # to 0.30
+            scale_val = DEFAULT_SCALE - 0.06 * t # to 0.94
+            look_y = 5.0 * t
+        elif u < 0.8:
+            # Locked tension micro-pulsing
+            tension = 0.02 * math.cos(2.0 * math.pi * 5.0 * elapsed) # 5 Hz fast pulse
+            open_val = 0.30 + tension
+            scale_val = 0.94
+            look_y = 5.0
+        else:
+            t = smoothstep((u - 0.8) / 0.2)
+            open_val = 0.30 + 0.70 * t
+            scale_val = 0.94 + 0.06 * t
+            look_y = 5.0 * (1.0 - t)
+
+        self.set_target_open(open_val, open_val)
+        self.set_target_scale(scale_val)
+        self.set_target_look(0.0, look_y)
+
+    def _update_scared_nervous(self, u: float, elapsed: float, dt: float) -> None:
+        """Scared/Nervous: Rapid scale enlargement with high-frequency nervous jitter/tremor in gaze."""
+        if u < 0.15:
+            t = elastic_out(u / 0.15)
+            scale_val = DEFAULT_SCALE + 0.28 * t  # 1.28x
+            open_val = 1.0
+        elif u < 0.85:
+            scale_val = 1.28
+            open_val = 1.0
+        else:
+            t = quad_in((u - 0.85) / 0.15)
+            scale_val = 1.28 - 0.28 * t
+            open_val = 1.0
+
+        jitter_x = 0.0
+        jitter_y = 0.0
+        if 0.15 <= u < 0.85:
+            # Tremor starts after elastic scale peak
+            jitter_x = 2.5 * math.sin(2.0 * math.pi * 14.0 * elapsed)
+            jitter_y = 2.0 * math.cos(2.0 * math.pi * 16.0 * elapsed)
+
+        self.set_target_scale(scale_val)
+        self.set_target_open(open_val, open_val)
+        self.set_target_look(jitter_x, jitter_y)
+
+    def _update_sad(self, u: float, elapsed: float, dt: float) -> None:
+        """Sad: Gradual droop to 0.52, heavy downward gaze (+34), deflated scale, sluggish breathing."""
+        if u < 0.3:
+            t = quad_out(u / 0.3)
+            open_val = 1.0 - 0.48 * t  # droop to 0.52
+            look_y = 34.0 * t
+            scale_val = DEFAULT_SCALE - 0.06 * t  # deflate to 0.94
+        elif u < 0.8:
+            open_val = 0.52
+            look_y = 34.0
+            scale_val = 0.94
+        else:
+            t = quad_in((u - 0.8) / 0.2)
+            open_val = 0.52 + 0.48 * t
+            look_y = 34.0 * (1.0 - t)
+            scale_val = 0.94 + 0.06 * t
+
+        self.set_target_open(open_val, open_val)
+        self.set_target_look(0.0, look_y)
+        self.set_target_scale(scale_val)
 
     def _update_drowsy(self, u: float, elapsed: float, dt: float) -> None:
         """Drowsy: eyes droop to half-closed with gentle sleepy settling wobble."""

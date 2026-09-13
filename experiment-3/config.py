@@ -66,8 +66,8 @@ SMOOTH_RATE_SCALE: float = 10.0      # Smooth scale expansion/contraction
 SMOOTH_RATE_OPEN: float = 24.0       # Responsive eyelid/squash morphing
 
 # ---------------------------------------------------------------------------
-# Stage 2 Timeline Segments (Name, Duration in Seconds)
-# Total sequence duration: 62.0 seconds
+# Stage 3 Expanded Timeline Segments (Name, Duration in Seconds)
+# Total sequence duration: 103.0 seconds (21 segments)
 # ---------------------------------------------------------------------------
 TIMELINE_SEGMENTS: List[Tuple[str, float]] = [
     ("intro", 10.0),
@@ -75,13 +75,22 @@ TIMELINE_SEGMENTS: List[Tuple[str, float]] = [
     ("blink", 3.5),
     ("look_horizontal", 5.0),
     ("look_vertical", 4.5),
+    ("curious", 4.5),
+    ("confused", 4.5),
     ("surprise", 3.5),
+    ("excited", 4.5),
+    ("happy_bounce", 4.5),
     ("wink", 3.5),
     ("playful_double_wink", 4.5),
-    ("happy_bounce", 4.5),
+    ("shy", 4.5),
     ("cute_blush", 5.0),
+    ("thinking", 5.0),
+    ("suspicious", 4.5),
+    ("angry", 4.5),
+    ("scared_nervous", 4.5),
+    ("sad", 5.0),
     ("drowsy", 5.0),
-    ("sleep", 9.5),
+    ("sleep", 9.0),
 ]
 
 TOTAL_TIMELINE_DURATION: float = sum(dur for _, dur in TIMELINE_SEGMENTS)

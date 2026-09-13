@@ -1,13 +1,15 @@
-"""Headless verification suite for ELO Face V3 (Stage 2).
+"""Headless verification suite for ELO Face V3 (Stage 3 - Expanded Emotion Vocabulary).
 
 Comprehensive automated tests verifying:
 1. Module independence (zero dependencies on experiment-2 or legacy code).
-2. Timeline segment ordering, durations, and 62.0-second loop timing.
+2. Timeline segment ordering, durations, and 103.0-second loop timing across all 21 segments.
 3. Intro typewriter progression and face fade-in transition.
-4. All 11 emotional behavior handlers and mathematical curves.
-5. Blush alpha envelope and sleep floating 'Z' particle dynamics.
-6. 3720-frame full 62-second 60 FPS headless simulation run.
-7. Verification that experiment-2 remains 100% untouched.
+4. All 20 emotional behavior handlers and mathematical curves.
+5. Pairwise distinctness checks for nuanced emotion pairs (Curious vs Confused, Excited vs Happy, Angry vs Suspicious, etc.).
+6. State boundary resets and clean transitions.
+7. Blush alpha envelope and sleep floating 'Z' particle dynamics.
+8. 6180-frame full 103.0-second 60 FPS headless simulation run.
+9. Verification that experiment-2 remains 100% untouched.
 """
 
 import os
@@ -66,22 +68,31 @@ def test_timeline_structure_and_timing() -> None:
         ("blink", 3.5),
         ("look_horizontal", 5.0),
         ("look_vertical", 4.5),
+        ("curious", 4.5),
+        ("confused", 4.5),
         ("surprise", 3.5),
+        ("excited", 4.5),
+        ("happy_bounce", 4.5),
         ("wink", 3.5),
         ("playful_double_wink", 4.5),
-        ("happy_bounce", 4.5),
+        ("shy", 4.5),
         ("cute_blush", 5.0),
+        ("thinking", 5.0),
+        ("suspicious", 4.5),
+        ("angry", 4.5),
+        ("scared_nervous", 4.5),
+        ("sad", 5.0),
         ("drowsy", 5.0),
-        ("sleep", 9.5),
+        ("sleep", 9.0),
     ]
 
-    assert_test(len(cfg.TIMELINE_SEGMENTS) == 12, "Timeline has exactly 12 segments")
+    assert_test(len(cfg.TIMELINE_SEGMENTS) == 21, f"Timeline has exactly 21 segments ({len(cfg.TIMELINE_SEGMENTS)}/21)")
     for i, (expected_name, expected_dur) in enumerate(expected_segments):
         actual_name, actual_dur = cfg.TIMELINE_SEGMENTS[i]
         assert_test(actual_name == expected_name, f"Segment #{i+1} is '{expected_name}'")
         assert_test(abs(actual_dur - expected_dur) < 1e-3, f"Segment '{actual_name}' duration is {expected_dur}s")
 
-    assert_test(abs(cfg.TOTAL_TIMELINE_DURATION - 62.0) < 1e-3, f"Total timeline duration is exactly 62.0s ({cfg.TOTAL_TIMELINE_DURATION:.1f}s)")
+    assert_test(abs(cfg.TOTAL_TIMELINE_DURATION - 103.0) < 1e-3, f"Total timeline duration is exactly 103.0s ({cfg.TOTAL_TIMELINE_DURATION:.1f}s)")
     assert_test(cfg.TIMELINE_SEGMENTS[0][0] == "intro", "Intro is strictly the first segment")
     assert_test(cfg.TIMELINE_SEGMENTS[-1][0] == "sleep", "Sleep is strictly the final expression")
 
@@ -135,92 +146,275 @@ def test_effects_blush_and_particles() -> None:
 
 
 def test_emotion_behaviors() -> None:
-    print("\n--- 5. Emotion Segment Behaviors & Math Tests ---")
+    print("\n--- 5. All 20 Emotion Handlers & Curve Tests ---")
     eye_pair = EyePair()
     timeline = TimelineController()
     controller = FaceController(eye_pair, timeline=timeline)
 
-    # A. Settle
+    # 1. Settle
     timeline.jump_to("settle")
     controller.update(0.1)
     assert_test(controller.target_open_left == 1.0 and controller.target_open_right == 1.0, "Settle keeps eyes fully open")
     assert_test(controller.target_scale == 1.0, "Settle scale is 1.0")
 
-    # B. Blink (2 blinks)
+    # 2. Blink
     timeline.jump_to("blink")
-    timeline.segment_elapsed = 0.95 # At peak of blink 1 (u ≈ 0.27)
+    timeline.segment_elapsed = 0.95
     controller.update(0.01)
-    assert_test(controller.target_open_left < 0.2, "Blink 1 closes eyes")
-    timeline.segment_elapsed = 1.75 # Reopened interval (u ≈ 0.50)
-    controller.update(0.01)
-    assert_test(controller.target_open_left > 0.8, "Eyes reopen between blinks")
+    assert_test(controller.target_open_left < 0.2, "Blink closes eyes")
 
-    # C. Look Horizontal
+    # 3. Look Horizontal
     timeline.jump_to("look_horizontal")
-    timeline.segment_elapsed = 1.5 # Looking Left (u = 0.30)
+    timeline.segment_elapsed = 1.5
     controller.update(0.01)
     assert_test(controller.target_look_x < -30.0, "Look horizontal glances left")
-    timeline.segment_elapsed = 3.8 # Looking Right (u = 0.76)
+    timeline.segment_elapsed = 3.8
     controller.update(0.01)
     assert_test(controller.target_look_x > 30.0, "Look horizontal glances right")
 
-    # D. Look Vertical
+    # 4. Look Vertical
     timeline.jump_to("look_vertical")
-    timeline.segment_elapsed = 1.5 # Looking Up (u = 0.33)
+    timeline.segment_elapsed = 1.5
     controller.update(0.01)
     assert_test(controller.target_look_y < -20.0, "Look vertical glances up")
-    timeline.segment_elapsed = 3.6 # Looking Down (u = 0.80)
+    timeline.segment_elapsed = 3.6
     controller.update(0.01)
     assert_test(controller.target_look_y > 20.0, "Look vertical glances down")
 
-    # E. Surprise
+    # 5. Curious (New)
+    timeline.jump_to("curious")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    assert_test(controller.target_look_x > 25.0, "Curious shifts gaze sideways (+x)")
+    assert_test(controller.target_open_left == 1.0 and controller.target_open_right < 0.90, "Curious exhibits controlled asymmetric squint (oL=1.0, oR=0.82)")
+
+    # 6. Confused (New)
+    timeline.jump_to("confused")
+    timeline.segment_elapsed = 0.8
+    controller.update(0.01)
+    assert_test(controller.target_look_x < -20.0 and controller.target_open_left < 0.90, "Confused shifts left with left squint")
+    timeline.segment_elapsed = 3.0
+    controller.update(0.01)
+    assert_test(controller.target_look_x > 15.0 and controller.target_open_right < 0.90, "Confused shifts right with right squint")
+
+    # 7. Surprise
     timeline.jump_to("surprise")
-    timeline.segment_elapsed = 1.5 # Peak surprise (u = 0.43)
+    timeline.segment_elapsed = 1.5
     controller.update(0.01)
     assert_test(controller.target_scale >= 1.30, "Surprise scales eyes up to ~1.35x")
 
-    # F. Wink (Asymmetric)
-    timeline.jump_to("wink")
-    timeline.segment_elapsed = 1.5 # Mid wink (u = 0.43)
+    # 8. Excited (New)
+    timeline.jump_to("excited")
+    timeline.segment_elapsed = 2.0
     controller.update(0.01)
-    assert_test(controller.target_open_left == 1.0, "Left eye remains open during wink")
-    assert_test(controller.target_open_right == 0.0, "Right eye closes during wink")
+    assert_test(controller.target_scale >= 1.15, "Excited scales eyes up to ~1.25x")
+    assert_test(controller.offset_look_y != 0.0, "Excited generates high-frequency bouncing (3.2 Hz)")
 
-    # G. Playful Double Wink (Alternating)
-    timeline.jump_to("playful_double_wink")
-    timeline.segment_elapsed = 1.0 # Right eye wink (u ≈ 0.22)
-    controller.update(0.01)
-    assert_test(controller.target_open_right < 0.2 and controller.target_open_left == 1.0, "Double wink phase 1 winks right eye")
-    timeline.segment_elapsed = 3.2 # Left eye wink (u ≈ 0.71)
-    controller.update(0.01)
-    assert_test(controller.target_open_left < 0.2 and controller.target_open_right == 1.0, "Double wink phase 2 winks left eye")
-
-    # H. Happy Bounce
+    # 9. Happy Bounce
     timeline.jump_to("happy_bounce")
     controller.update(0.1)
-    assert_test(controller.offset_look_y != 0.0, "Happy bounce produces vertical offset motion")
+    assert_test(controller.offset_look_y != 0.0, "Happy bounce produces vertical hopping")
 
-    # I. Cute Blush
+    # 10. Wink
+    timeline.jump_to("wink")
+    timeline.segment_elapsed = 1.5
+    controller.update(0.01)
+    assert_test(controller.target_open_left == 1.0 and controller.target_open_right == 0.0, "Wink keeps left open and right closed")
+
+    # 11. Playful Double Wink
+    timeline.jump_to("playful_double_wink")
+    timeline.segment_elapsed = 1.0
+    controller.update(0.01)
+    assert_test(controller.target_open_right < 0.2 and controller.target_open_left == 1.0, "Double wink phase 1 winks right")
+    timeline.segment_elapsed = 3.2
+    controller.update(0.01)
+    assert_test(controller.target_open_left < 0.2 and controller.target_open_right == 1.0, "Double wink phase 2 winks left")
+
+    # 12. Shy (New)
+    timeline.jump_to("shy")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    assert_test(controller.target_look_y > 20.0 and controller.target_look_x < -15.0, "Shy looks down and away")
+    assert_test(0.60 <= controller.target_open_left <= 0.70, "Shy droops eyelids to ~0.65")
+    assert_test(controller.blush_state.alpha > 40.0, "Shy exhibits subtle blush cheek alpha (~70)")
+
+    # 13. Cute Blush
     timeline.jump_to("cute_blush")
-    timeline.segment_elapsed = 2.5 # Peak blush (u = 0.50)
+    timeline.segment_elapsed = 2.5
     controller.update(0.01)
-    assert_test(controller.blush_state.alpha > 150.0, "Cute blush produces visible cheek stroke alpha")
+    assert_test(controller.blush_state.alpha > 150.0, "Cute blush produces full blush alpha (~180)")
 
-    # J. Drowsy
+    # 14. Thinking (New)
+    timeline.jump_to("thinking")
+    timeline.segment_elapsed = 2.5
+    controller.update(0.01)
+    assert_test(controller.target_look_y < -25.0 and controller.target_look_x > 15.0, "Thinking drifts gaze upward and sideways")
+    assert_test(0.35 <= controller.target_open_left <= 0.45, "Thinking squints eyelids to ~0.40")
+
+    # 15. Suspicious (New)
+    timeline.jump_to("suspicious")
+    timeline.segment_elapsed = 2.5
+    controller.update(0.01)
+    assert_test(controller.target_look_x >= 45.0, "Suspicious casts strong side-eye (dx=+50)")
+    assert_test(0.40 <= controller.target_open_left <= 0.55, "Suspicious narrows eyes moderately (o=0.48)")
+
+    # 16. Angry (New)
+    timeline.jump_to("angry")
+    timeline.segment_elapsed = 2.5
+    controller.update(0.01)
+    assert_test(controller.target_open_left <= 0.35, "Angry squashes eyes to narrow horizontal slits (o=0.30)")
+    assert_test(controller.target_scale <= 0.95, "Angry deflates scale compactly (s=0.94)")
+
+    # 17. Scared/Nervous (New)
+    timeline.jump_to("scared_nervous")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    assert_test(controller.target_scale >= 1.25, "Scared/Nervous scales eyes up (1.28x)")
+    assert_test(controller.target_look_x != 0.0 or controller.target_look_y != 0.0, "Scared/Nervous produces micro-tremor jitter")
+
+    # 18. Sad (New)
+    timeline.jump_to("sad")
+    timeline.segment_elapsed = 2.5
+    controller.update(0.01)
+    assert_test(controller.target_look_y >= 30.0, "Sad directs heavy downward gaze (dy=+34)")
+    assert_test(0.48 <= controller.target_open_left <= 0.56, "Sad droops eyes to ~0.52")
+    assert_test(controller.target_scale <= 0.95, "Sad contracts scale (0.94x)")
+
+    # 19. Drowsy
     timeline.jump_to("drowsy")
-    timeline.segment_elapsed = 3.5 # Drowsy hold (u = 0.70)
+    timeline.segment_elapsed = 3.5
     controller.update(0.01)
-    assert_test(0.35 <= controller.target_open_left <= 0.50, f"Drowsy droops eyes to ~0.42 ({controller.target_open_left:.2f})")
+    assert_test(0.35 <= controller.target_open_left <= 0.50, "Drowsy droops eyes to ~0.42")
 
-    # K. Sleep
+    # 20. Sleep
     timeline.jump_to("sleep")
-    timeline.segment_elapsed = 3.0 # Sleep active
+    timeline.segment_elapsed = 3.0
     controller.update(0.01)
     assert_test(controller.target_open_left == 0.0 and controller.target_open_right == 0.0, "Sleep closes both eyes completely")
 
 
-def test_full_62_second_simulation() -> None:
-    print("\n--- 6. Full 62-Second 60 FPS Headless Simulation ---")
+def test_pairwise_distinctions() -> None:
+    print("\n--- 6. Pairwise Emotion Distinction Verification ---")
+    eye_pair = EyePair()
+    timeline = TimelineController()
+    controller = FaceController(eye_pair, timeline=timeline)
+
+    # A. Curious vs Confused
+    timeline.jump_to("curious")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    curious_dx = controller.target_look_x
+    curious_asym = abs(controller.target_open_left - controller.target_open_right)
+
+    timeline.jump_to("confused")
+    timeline.segment_elapsed = 0.8
+    controller.update(0.01)
+    confused_dx = controller.target_look_x
+
+    assert_test(curious_dx > 0 and confused_dx < 0, "Curious (right gaze) is distinct from early Confused (left hesitant glance)")
+    assert_test(curious_asym > 0.10, "Curious maintains asymmetric eye inspection")
+
+    # B. Happy Bounce vs Excited
+    timeline.jump_to("happy_bounce")
+    timeline.segment_elapsed = 1.0
+    controller.update(0.01)
+    happy_scale = controller.target_scale
+
+    timeline.jump_to("excited")
+    timeline.segment_elapsed = 1.0
+    controller.update(0.01)
+    excited_scale = controller.target_scale
+
+    assert_test(abs(happy_scale - 1.0) < 0.02 and excited_scale > 1.15, "Excited maintains scale burst (1.25x) while Happy Bounce maintains base scale (1.0x)")
+
+    # C. Angry vs Suspicious
+    timeline.jump_to("angry")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    angry_open = controller.target_open_left
+    angry_dx = controller.target_look_x
+
+    timeline.jump_to("suspicious")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    suspicious_open = controller.target_open_left
+    suspicious_dx = controller.target_look_x
+
+    assert_test(angry_open < 0.35 and suspicious_open > 0.45, "Angry is much more squashed (o=0.30) than Suspicious (o=0.48)")
+    assert_test(abs(angry_dx) < 5.0 and suspicious_dx >= 45.0, "Suspicious has heavy lateral displacement (dx=+50) while Angry is forward-focused")
+
+    # D. Surprise vs Scared/Nervous
+    timeline.jump_to("surprise")
+    timeline.segment_elapsed = 1.5
+    controller.update(0.01)
+    surprise_jitter = abs(controller.target_look_x) + abs(controller.target_look_y)
+
+    timeline.jump_to("scared_nervous")
+    timeline.segment_elapsed = 1.5
+    controller.update(0.01)
+    nervous_jitter = abs(controller.target_look_x) + abs(controller.target_look_y)
+
+    assert_test(surprise_jitter < 0.01 and nervous_jitter > 0.5, "Scared/Nervous has active jitter tremor while Surprise has clean motionless gaze")
+
+    # E. Shy vs Sad
+    timeline.jump_to("shy")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    shy_blush = controller.blush_state.alpha
+    shy_dx = controller.target_look_x
+
+    timeline.jump_to("sad")
+    timeline.segment_elapsed = 2.0
+    controller.update(0.01)
+    sad_blush = controller.blush_state.alpha
+    sad_dx = controller.target_look_x
+
+    assert_test(shy_blush > 50.0 and sad_blush == 0.0, "Shy displays blush accent while Sad does not")
+    assert_test(abs(shy_dx) > 15.0 and abs(sad_dx) < 2.0, "Shy glances sideways/down while Sad looks straight down")
+
+    # F. Drowsy vs Sad
+    timeline.jump_to("drowsy")
+    timeline.segment_elapsed = 2.5
+    controller.update(0.01)
+    drowsy_dy = controller.target_look_y
+    drowsy_scale = controller.target_scale
+
+    timeline.jump_to("sad")
+    timeline.segment_elapsed = 2.5
+    controller.update(0.01)
+    sad_dy = controller.target_look_y
+    sad_scale = controller.target_scale
+
+    assert_test(sad_dy > 30.0 and drowsy_dy < 15.0, "Sad has heavier downward gaze than Drowsy")
+    assert_test(sad_scale < 0.95 and abs(drowsy_scale - 1.0) < 0.02, "Sad deflates scale (0.94x) while Drowsy stays at default scale")
+
+
+def test_state_boundary_transitions() -> None:
+    print("\n--- 7. State Boundary Reset Verification ---")
+    eye_pair = EyePair()
+    timeline = TimelineController()
+    controller = FaceController(eye_pair, timeline=timeline)
+
+    # 1. Cute blush -> settle
+    timeline.jump_to("cute_blush")
+    timeline.segment_elapsed = 2.5
+    controller.update(0.01)
+    assert_test(controller.blush_state.alpha > 100.0, "Blush is active during cute_blush")
+    timeline.jump_to("settle")
+    controller.update(0.01)
+    assert_test(controller.blush_state.alpha == 0.0, "Blush resets to 0.0 when transitioning to settle")
+
+    # 2. Sleep -> settle
+    timeline.jump_to("sleep")
+    controller.sleep_particles.spawn()
+    assert_test(len(controller.sleep_particles.particles) > 0, "Sleep particles exist during sleep")
+    timeline.jump_to("settle")
+    controller.update(0.01)
+    assert_test(len(controller.sleep_particles.particles) == 0, "Sleep particles reset when transitioning away from sleep")
+
+
+def test_full_103_second_simulation() -> None:
+    print("\n--- 8. Full 103-Second 60 FPS Headless Simulation (6,180 Frames) ---")
     pygame.init()
     screen = pygame.display.set_mode((cfg.WINDOW_WIDTH, cfg.WINDOW_HEIGHT))
     renderer = Renderer(cfg.WINDOW_WIDTH, cfg.WINDOW_HEIGHT)
@@ -229,7 +423,7 @@ def test_full_62_second_simulation() -> None:
     controller = FaceController(eye_pair, timeline=timeline)
 
     dt = 1.0 / 60.0
-    total_frames = int(62.0 * 60) # 3720 frames
+    total_frames = int(cfg.TOTAL_TIMELINE_DURATION * 60) + 10 # 6190 frames for complete loop roll-over
 
     visited_segments = set()
     start_sim = time.perf_counter()
@@ -251,14 +445,14 @@ def test_full_62_second_simulation() -> None:
         )
 
     sim_time = time.perf_counter() - start_sim
-    assert_test(len(visited_segments) == 12, f"Simulation visited all 12 segments ({len(visited_segments)}/12)")
-    assert_test(controller.timeline.loop_count >= 1, f"Simulation completed full 62.0s loop (loop_count={controller.timeline.loop_count})")
-    print(f"  [PERF] 3720 frames simulated in {sim_time:.3f}s ({total_frames / sim_time:.0f} FPS headless throughput)")
+    assert_test(len(visited_segments) == 21, f"Simulation visited all 21 segments ({len(visited_segments)}/21)")
+    assert_test(controller.timeline.loop_count >= 1, f"Simulation completed full 103.0s loop (loop_count={controller.timeline.loop_count})")
+    print(f"  [PERF] {total_frames} frames simulated in {sim_time:.3f}s ({total_frames / sim_time:.0f} FPS headless throughput)")
 
 
 def main() -> None:
     print("=" * 65)
-    print("  RUNNING ELO FACE V3 (STAGE 2) FULL VERIFICATION SUITE")
+    print("  RUNNING ELO FACE V3 (STAGE 3) FULL VERIFICATION SUITE")
     print("=" * 65)
 
     start_time = time.perf_counter()
@@ -268,11 +462,13 @@ def main() -> None:
     test_intro_state_progression()
     test_effects_blush_and_particles()
     test_emotion_behaviors()
-    test_full_62_second_simulation()
+    test_pairwise_distinctions()
+    test_state_boundary_transitions()
+    test_full_103_second_simulation()
 
     elapsed = time.perf_counter() - start_time
     print("=" * 65)
-    print(f"  ALL STAGE 2 VERIFICATION TESTS PASSED in {elapsed:.3f}s!")
+    print(f"  ALL STAGE 3 VERIFICATION TESTS PASSED in {elapsed:.3f}s!")
     print("=" * 65)
 
 

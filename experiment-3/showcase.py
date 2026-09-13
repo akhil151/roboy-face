@@ -1,13 +1,17 @@
-"""Interactive showcase for ELO Face V3 (Stage 2).
+"""Interactive showcase for ELO Face V3 (Stage 3 - Expanded Emotion Vocabulary).
 
-Runs the complete 62-second automated timeline experience:
-    Intro (10s) -> Settle (3.5s) -> Blink (3.5s) -> Look Horizontal (5.0s) ->
-    Look Vertical (4.5s) -> Surprise (3.5s) -> Wink (3.5s) ->
-    Playful Double Wink (4.5s) -> Happy Bounce (4.5s) -> Cute Blush (5.0s) ->
-    Drowsy (5.0s) -> Sleep (9.5s) -> Loop
+Runs the complete 103-second automated timeline experience (21 segments):
+    Intro (10.0s) -> Settle (3.5s) -> Blink (3.5s) -> Look Horizontal (5.0s) ->
+    Look Vertical (4.5s) -> Curious (4.5s) -> Confused (4.5s) -> Surprise (3.5s) ->
+    Excited (4.5s) -> Happy Bounce (4.5s) -> Wink (3.5s) -> Playful Double Wink (4.5s) ->
+    Shy (4.5s) -> Cute Blush (5.0s) -> Thinking (5.0s) -> Suspicious (4.5s) ->
+    Angry (4.5s) -> Scared/Nervous (4.5s) -> Sad (5.0s) -> Drowsy (5.0s) ->
+    Sleep (9.5s) -> Loop
 
 Controls:
-    1 - 9, 0, -, =    : Jump directly to any of the 12 segments
+    1 - 9             : Jump to segments 1-9 (Intro .. Excited)
+    0                 : Jump to segment 10 (Happy Bounce)
+    - / =             : Jump to Drowsy / Sleep
     RIGHT / N         : Next timeline segment
     LEFT / P          : Previous timeline segment
     SPACE             : Toggle Pause / Resume
@@ -77,26 +81,27 @@ def main() -> None:
     start_time = time.perf_counter()
     last_time = start_time
 
-    # Key to segment index mapping
+    # Key to segment index mapping (quick jumps)
     segment_keys = {
         pygame.K_1: 0,  # intro
         pygame.K_2: 1,  # settle
         pygame.K_3: 2,  # blink
         pygame.K_4: 3,  # look_horizontal
         pygame.K_5: 4,  # look_vertical
-        pygame.K_6: 5,  # surprise
-        pygame.K_7: 6,  # wink
-        pygame.K_8: 7,  # playful_double_wink
-        pygame.K_9: 8,  # happy_bounce
-        pygame.K_0: 9,  # cute_blush
-        pygame.K_MINUS: 10, # drowsy
-        pygame.K_EQUALS: 11, # sleep
+        pygame.K_6: 5,  # curious
+        pygame.K_7: 6,  # confused
+        pygame.K_8: 7,  # surprise
+        pygame.K_9: 8,  # excited
+        pygame.K_0: 9,  # happy_bounce
+        pygame.K_MINUS: 19, # drowsy
+        pygame.K_EQUALS: 20, # sleep
     }
 
     print("=" * 65)
-    print("  ELO Face V3 — Stage 2 Expression Timeline Showcase")
+    print("  ELO Face V3 — Stage 3 Expression Timeline Showcase")
     print(f"  Resolution: 800x480 | Target FPS: {args.fps} | Total Loop: {TOTAL_TIMELINE_DURATION:.1f}s")
-    print("  Keys 1-9, 0, -, = to Jump | SPACE to Pause | H for HUD | ESC to Quit")
+    print(f"  Total Segments: {len(TIMELINE_SEGMENTS)} expressions in sequence")
+    print("  Keys 1-9, 0, -, = to Jump | N/P (or Left/Right) for Prev/Next | SPACE: Pause | H: HUD")
     print("=" * 65)
 
     try:

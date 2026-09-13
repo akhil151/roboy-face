@@ -49,6 +49,12 @@ def quad_out(t: float) -> float:
     return 1.0 - (1.0 - t) * (1.0 - t)
 
 
+def quad_in(t: float) -> float:
+    """Quadratic ease-in curve."""
+    t = clamp(t, 0.0, 1.0)
+    return t * t
+
+
 def elastic_out(t: float, amplitude: float = 1.0, period: float = 0.3) -> float:
     """Elastic ease-out for expressive bounce/rebound effects."""
     t = clamp(t, 0.0, 1.0)
